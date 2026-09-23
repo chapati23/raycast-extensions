@@ -31,7 +31,7 @@ export interface TokenResult {
   volume24Usd?: number;
   marketCapUsd?: number;
   fdvUsd?: number;
-  /** https://www.defined.fi/{networkSlug}/{address} */
+  /** https://www.defined.fi/token/{networkSlug}/{address} (verified in a browser) */
   definedUrl: string;
   explorerUrl?: string;
 }
