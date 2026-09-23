@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAddress, formatPercent, formatUsd } from "./format";
+import { formatAddress, formatPercent, formatUsd, tokenHeaderMarkdown } from "./format";
 
 describe("formatUsd", () => {
   it("returns an em dash for undefined", () => {
@@ -93,5 +93,25 @@ describe("formatAddress", () => {
 
   it("returns short strings unchanged", () => {
     expect(formatAddress("0x1234")).toBe("0x1234");
+  });
+});
+
+describe("tokenHeaderMarkdown", () => {
+  const token = { name: "Pons", symbol: "PONS", networkName: "Robinhood" };
+
+  it("sizes the logo, appending to an existing query string", () => {
+    expect(tokenHeaderMarkdown({ ...token, imageUrl: "https://img/p.png" })).toContain(
+      "![](https://img/p.png?raycast-width=56&raycast-height=56)",
+    );
+    expect(tokenHeaderMarkdown({ ...token, imageUrl: "https://img/p.png?v=2" })).toContain(
+      "p.png?v=2&raycast-width=56",
+    );
+  });
+
+  it("omits the image when there is none and escapes Markdown in names", () => {
+    const md = tokenHeaderMarkdown({ name: "*Evil* _Coin_", symbol: "EV#L", networkName: "Solana" });
+    expect(md).not.toContain("![]");
+    expect(md).toContain("## \\*Evil\\* \\_Coin\\_");
+    expect(md).toContain("**EV\\#L** on Solana");
   });
 });

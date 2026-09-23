@@ -24,7 +24,7 @@ import { Onboarding } from "./components/Onboarding";
 import { CodexError } from "./lib/types";
 import type { Network, TokenResult } from "./lib/types";
 import { addRecent, clearRecents, getRecents } from "./lib/recents";
-import { formatAddress, formatPercent, formatUsd, isFlatChange } from "./lib/format";
+import { formatAddress, formatPercent, formatUsd, isFlatChange, tokenHeaderMarkdown } from "./lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -377,10 +377,9 @@ function TokenDetail({ token }: { token: TokenResult }) {
 
   return (
     <List.Item.Detail
+      markdown={tokenHeaderMarkdown(token)}
       metadata={
         <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Name" text={`${token.name} (${token.symbol})`} />
-          <List.Item.Detail.Metadata.Label title="Network" text={token.networkName} />
           <List.Item.Detail.Metadata.Label title="Price" text={formatUsd(token.priceUsd)} />
           <List.Item.Detail.Metadata.Label
             title="24h Change"

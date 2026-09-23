@@ -93,3 +93,28 @@ export function formatAddress(a?: string): string {
   if (a.length <= 10) return a;
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
+
+/** Escapes characters that Markdown would treat as formatting in token names. */
+function escapeMarkdown(text: string): string {
+  return text.replace(/([\\`*_[\]<>#|~])/g, "\\$1");
+}
+
+/**
+ * Header for the detail pane: logo, name, symbol, and network. Raycast sizes
+ * Markdown images through the raycast-width/height query parameters.
+ */
+export function tokenHeaderMarkdown(token: {
+  name: string;
+  symbol: string;
+  networkName: string;
+  imageUrl?: string;
+}): string {
+  const lines: string[] = [];
+  if (token.imageUrl) {
+    const sep = token.imageUrl.includes("?") ? "&" : "?";
+    lines.push(`![](${token.imageUrl}${sep}raycast-width=56&raycast-height=56)`, "");
+  }
+  lines.push(`## ${escapeMarkdown(token.name || token.symbol)}`, "");
+  lines.push(`**${escapeMarkdown(token.symbol)}** on ${escapeMarkdown(token.networkName)}`);
+  return lines.join("\n");
+}
