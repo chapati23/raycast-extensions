@@ -6,11 +6,14 @@ import {
   Action,
   ActionPanel,
   Clipboard,
+  closeMainWindow,
   Color,
   Icon,
   Keyboard,
   List,
+  open,
   openExtensionPreferences,
+  PopToRootType,
   showToast,
   Toast,
 } from "@raycast/api";
@@ -172,8 +175,9 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
     return () => controller.abort();
   }, [apiKey, debouncedText, networkId]);
 
-  const handleOpen = useCallback((token: TokenResult) => {
-    void addRecent(token).then(() => getRecents().then(setRecents));
+  const handleOpen = useCallback(async (token: TokenResult) => {
+    await addRecent(token);
+    setRecents(await getRecents());
   }, []);
 
   const handleClearRecents = useCallback(() => {
@@ -297,7 +301,7 @@ function TokenListItem({
   onClearRecents,
 }: {
   token: TokenResult;
-  onOpen: (token: TokenResult) => void;
+  onOpen: (token: TokenResult) => Promise<void>;
   showDetail: boolean;
   onToggleDetail: () => void;
   showClearRecents?: boolean;
@@ -328,7 +332,7 @@ function TokenListItem({
       actions={
         <ActionPanel>
           <ActionPanel.Section>
-            <Action.OpenInBrowser title="Open on Defined.fi" url={token.definedUrl} onOpen={() => onOpen(token)} />
+            <Action title="Open on Defined.fi" icon={Icon.Globe} onAction={() => void openOnDefined(token, onOpen)} />
             <Action.CopyToClipboard
               title="Copy Contract Address"
               content={token.address}
@@ -396,6 +400,20 @@ function TokenDetail({ token }: { token: TokenResult }) {
       }
     />
   );
+}
+
+/**
+ * Saves the token to recents before opening it. Action.OpenInBrowser fires
+ * onOpen without awaiting it and closes the window, which unloads the command
+ * before the LocalStorage write lands.
+ */
+async function openOnDefined(token: TokenResult, onOpen: (token: TokenResult) => Promise<void>) {
+  try {
+    await onOpen(token);
+  } finally {
+    await open(token.definedUrl);
+    await closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Immediate });
+  }
 }
 
 /** Detail labels cannot show tooltips, so the truncated address copies the full one on click. */
