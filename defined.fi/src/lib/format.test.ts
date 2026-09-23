@@ -113,6 +113,14 @@ describe("tokenHeaderMarkdown", () => {
     );
   });
 
+  it("keeps a hostile image URL inside one image and drops non-https URLs", () => {
+    const md = tokenHeaderMarkdown({ ...token, imageUrl: "https://img.invalid/a)\n\n[Open](https://evil.invalid/x" });
+    expect(md).not.toContain("[Open](");
+    expect(md.split("\n")[0]).toMatch(/^!\[\]\(https:\/\/img\.invalid\/a%29[^()\s]*\)$/);
+    expect(tokenHeaderMarkdown({ ...token, imageUrl: "file:///etc/passwd" })).not.toContain("![]");
+    expect(tokenHeaderMarkdown({ ...token, imageUrl: "not a url" })).not.toContain("![]");
+  });
+
   it("omits the image when there is none and escapes Markdown in names", () => {
     const md = tokenHeaderMarkdown({ ...token, name: "*Evil* _Coin_", symbol: "EV#L", networkName: "Solana" });
     expect(md).not.toContain("![]");

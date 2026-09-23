@@ -100,8 +100,26 @@ function escapeMarkdown(text: string): string {
 }
 
 /**
- * Header for the detail pane: logo, name, symbol, network, and short address. Raycast sizes
- * Markdown images through the raycast-width/height query parameters.
+ * An https image URL that stays inside one Markdown image destination, sized
+ * through Raycast's raycast-width/height parameters; undefined otherwise. The
+ * URL comes from the API, so a ")" or newline must not end the image early.
+ */
+function markdownImageUrl(raw: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "https:") return undefined;
+  url.searchParams.set("raycast-width", "56");
+  url.searchParams.set("raycast-height", "56");
+  // URL parsing drops newlines and encodes spaces; parentheses need encoding by hand.
+  return url.href.replace(/\(/g, "%28").replace(/\)/g, "%29");
+}
+
+/**
+ * Header for the detail pane: logo, name, symbol, network, and short address.
  */
 export function tokenHeaderMarkdown(token: {
   name: string;
@@ -111,10 +129,8 @@ export function tokenHeaderMarkdown(token: {
   imageUrl?: string;
 }): string {
   const lines: string[] = [];
-  if (token.imageUrl) {
-    const sep = token.imageUrl.includes("?") ? "&" : "?";
-    lines.push(`![](${token.imageUrl}${sep}raycast-width=56&raycast-height=56)`, "");
-  }
+  const imageUrl = token.imageUrl && markdownImageUrl(token.imageUrl);
+  if (imageUrl) lines.push(`![](${imageUrl})`, "");
   lines.push(`## ${escapeMarkdown(token.name || token.symbol)}`, "");
   lines.push(
     `**${escapeMarkdown(token.symbol)}** on ${escapeMarkdown(token.networkName)} · \`${formatAddress(token.address)}\``,
