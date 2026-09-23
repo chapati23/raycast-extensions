@@ -26,7 +26,8 @@ function toPlainSignificant(value: number, sigDigits: number): string {
  * Formats a USD amount for display. Uses compact notation for large values
  * (e.g. "$42.1M", "$4.7B", "$310K") and full precision (3 significant digits) for
  * sub-$1 prices (e.g. "$0.0000112"), since compact/2-decimal notation would round
- * those to "$0.00". Returns "—" for undefined or NaN.
+ * those to "$0.00"; 4+ leading zeros use subscript notation ("$0.0₅4755").
+ * Returns "—" for undefined or NaN.
  */
 export function formatUsd(n?: number): string {
   if (n === undefined || Number.isNaN(n)) return MISSING;
@@ -41,7 +42,28 @@ export function formatUsd(n?: number): string {
   if (abs >= 1) {
     return `${sign}$${abs.toFixed(2)}`;
   }
-  return `${sign}$${toPlainSignificant(abs, 3)}`;
+  return `${sign}$${formatSmall(abs)}`;
+}
+
+const SUBSCRIPT_DIGITS = "₀₁₂₃₄₅₆₇₈₉";
+/** Prices with at least this many zeros after the decimal point use subscript notation. */
+const SUBSCRIPT_MIN_ZEROS = 4;
+
+/**
+ * Sub-$1 value, matching Defined.fi: "0.0123", or "0.0₅4755" for 0.000004755
+ * (the subscript counts the zeros after the decimal point).
+ */
+function formatSmall(abs: number): string {
+  let zeros = -Math.floor(Math.log10(abs)) - 1;
+  if (zeros < SUBSCRIPT_MIN_ZEROS) return toPlainSignificant(abs, 3);
+  let digits = Math.round(abs * 10 ** (zeros + 4)).toString();
+  if (digits.length > 4) {
+    // Rounding carried into a new digit, e.g. 0.0000099999 → 0.0₅1.
+    zeros -= 1;
+    digits = digits.slice(0, 4);
+  }
+  const subscript = [...String(zeros)].map((d) => SUBSCRIPT_DIGITS[Number(d)]).join("");
+  return `0.0${subscript}${digits.replace(/0+$/, "") || "0"}`;
 }
 
 /**

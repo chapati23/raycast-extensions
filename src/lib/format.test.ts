@@ -32,7 +32,11 @@ describe("formatUsd", () => {
   });
 
   it("keeps three significant digits for tiny prices", () => {
-    expect(formatUsd(0.0000112)).toBe("$0.0000112");
+    expect(formatUsd(0.0000112)).toBe("$0.0₄112");
+    expect(formatUsd(4.75211842279e-6)).toBe("$0.0₅4752");
+    expect(formatUsd(3.14146622291e-9)).toBe("$0.0₈3141");
+    expect(formatUsd(0.000123)).toBe("$0.000123");
+    expect(formatUsd(0.0000099999)).toBe("$0.0₄1");
   });
 
   it("keeps three significant digits for prices just under $1", () => {
@@ -42,7 +46,7 @@ describe("formatUsd", () => {
   it("formats negative values with a leading minus sign", () => {
     expect(formatUsd(-42_100_000)).toBe("-$42.1M");
     expect(formatUsd(-1.5)).toBe("-$1.50");
-    expect(formatUsd(-0.0000112)).toBe("-$0.0000112");
+    expect(formatUsd(-0.0000112)).toBe("-$0.0₄112");
   });
 });
 

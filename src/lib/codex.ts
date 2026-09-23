@@ -13,13 +13,11 @@ const DEFAULT_SEARCH_LIMIT = 25;
 const RATE_LIMIT_RETRY_DELAYS_MS = [400, 1000];
 
 /**
- * Conservative heuristic for what a Codex API key looks like: a single
- * token with no whitespace, 20-128 characters, using only letters, digits,
- * underscore, hyphen, and dot.
- *
- * TODO: tighten once the real key shape is known.
+ * Codex API keys are 40 lowercase hex characters (checked against a real key,
+ * 2026-09-23). Keep this strict: the setup screen sends clipboard text that
+ * matches it to Codex, so a loose pattern would leak other secrets.
  */
-export const CODEX_KEY_PATTERN = /^[A-Za-z0-9_.-]{20,128}$/;
+export const CODEX_KEY_PATTERN = /^[0-9a-f]{40}$/;
 
 export function looksLikeCodexKey(text: string): boolean {
   return CODEX_KEY_PATTERN.test(text.trim());
@@ -239,20 +237,6 @@ function toNumber(value: string | null | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/**
- * Codex's `change24` (and sibling change* fields) is UNVERIFIED as to
- * whether it is a percentage number (4.52 meaning +4.52%) or already a
- * fraction (0.0452). Codex's docs do not state the format. This client
- * assumes it is a percentage, matching the convention used by comparable
- * token-data APIs, and divides by 100 to match the TokenResult contract
- * ("24h price change as a fraction: 0.04 means +4%"). Verify against a
- * live response before shipping; flip this if it turns out to be wrong.
- */
-function toChangeFraction(value: string | null | undefined): number | undefined {
-  const n = toNumber(value);
-  return n === undefined ? undefined : n / 100;
-}
-
 export function mapFilterTokensResult(
   row: FilterTokensResult,
   networkById: Map<number, Network>,
@@ -288,7 +272,7 @@ export function mapFilterTokensResult(
     symbol: token.symbol ?? "",
     imageUrl: token.info?.imageThumbUrl ?? token.info?.imageSmallUrl ?? undefined,
     priceUsd: toNumber(row.priceUSD),
-    change24: toChangeFraction(row.change24),
+    change24: toNumber(row.change24), // already a fraction: -0.0306 is -3.06% (checked against defined.fi),
     liquidityUsd: toNumber(row.liquidity),
     volume24Usd: toNumber(row.volume24),
     marketCapUsd: toNumber(row.marketCap),

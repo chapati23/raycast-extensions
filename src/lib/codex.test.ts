@@ -9,35 +9,21 @@ import { definedUrlFor, deriveDefinedSlug, explorerUrlFor } from "./networks";
 // -----------------------------------------------------------------------
 
 describe("looksLikeCodexKey", () => {
-  it("accepts a plausible key", () => {
-    expect(looksLikeCodexKey("a".repeat(32))).toBe(true);
-    expect(looksLikeCodexKey("abc123_ABC-def.456-xyz")).toBe(true);
+  const KEY = "0123456789abcdef0123456789abcdef01234567";
+
+  it("accepts 40 lowercase hex characters, trimming whitespace", () => {
+    expect(looksLikeCodexKey(KEY)).toBe(true);
+    expect(looksLikeCodexKey(`  ${KEY}\n`)).toBe(true);
   });
 
-  it("trims surrounding whitespace before checking", () => {
-    expect(looksLikeCodexKey(`  ${"a".repeat(32)}  \n`)).toBe(true);
-  });
-
-  it("rejects keys with internal whitespace", () => {
-    expect(looksLikeCodexKey(`${"a".repeat(16)} ${"a".repeat(16)}`)).toBe(false);
-  });
-
-  it("rejects keys that are too short", () => {
-    expect(looksLikeCodexKey("a".repeat(19))).toBe(false);
-  });
-
-  it("rejects keys that are too long", () => {
-    expect(looksLikeCodexKey("a".repeat(129))).toBe(false);
-  });
-
-  it("rejects disallowed characters", () => {
-    expect(looksLikeCodexKey(`${"a".repeat(31)}!`)).toBe(false);
-    expect(looksLikeCodexKey(`${"a".repeat(31)}$`)).toBe(false);
-  });
-
-  it("rejects empty or whitespace-only input", () => {
+  it("rejects other secrets and hashes that might sit on the clipboard", () => {
+    expect(looksLikeCodexKey(`ghp_${"a".repeat(36)}`)).toBe(false); // GitHub token
+    expect(looksLikeCodexKey(`0x${"a".repeat(64)}`)).toBe(false); // tx hash
+    expect(looksLikeCodexKey("a".repeat(64))).toBe(false); // bare 32-byte hex
+    expect(looksLikeCodexKey(KEY.toUpperCase())).toBe(false);
+    expect(looksLikeCodexKey(KEY.slice(1))).toBe(false);
+    expect(looksLikeCodexKey(`${KEY}0`)).toBe(false);
     expect(looksLikeCodexKey("")).toBe(false);
-    expect(looksLikeCodexKey("   ")).toBe(false);
   });
 });
 
@@ -113,7 +99,7 @@ describe("mapFilterTokensResult", () => {
     const mapped = mapFilterTokensResult(
       {
         priceUSD: "1.23",
-        change24: "4.5",
+        change24: "0.045",
         liquidity: "1000000",
         volume24: "500000",
         marketCap: "9000000",
