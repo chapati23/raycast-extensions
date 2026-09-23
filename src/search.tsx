@@ -320,8 +320,8 @@ function TokenListItem({
         ...(showDetail
           ? []
           : [
-              { text: `L ${formatUsd(token.liquidityUsd)}`, tooltip: "Liquidity" },
-              { text: `V ${formatUsd(token.volume24Usd)}`, tooltip: "24h volume" },
+              { text: `Liq ${formatUsd(token.liquidityUsd)}`, tooltip: "Liquidity" },
+              { text: `Vol ${formatUsd(token.volume24Usd)}`, tooltip: "24h volume" },
             ]),
       ]}
       detail={<TokenDetail token={token} />}
