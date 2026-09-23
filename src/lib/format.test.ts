@@ -51,6 +51,12 @@ describe("formatUsd", () => {
 });
 
 describe("formatPercent", () => {
+  it("shows changes that round to zero without a sign", () => {
+    expect(formatPercent(-0.0001)).toBe("0.0%");
+    expect(formatPercent(0.0004)).toBe("0.0%");
+    expect(formatPercent(-0.0006)).toBe("-0.1%");
+  });
+
   it("returns an em dash for undefined", () => {
     expect(formatPercent(undefined)).toBe("—");
   });
@@ -67,8 +73,8 @@ describe("formatPercent", () => {
     expect(formatPercent(-0.082)).toBe("-8.2%");
   });
 
-  it("formats zero as +0.0%", () => {
-    expect(formatPercent(0)).toBe("+0.0%");
+  it("formats zero as 0.0%", () => {
+    expect(formatPercent(0)).toBe("0.0%");
   });
 });
 

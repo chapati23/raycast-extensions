@@ -24,7 +24,7 @@ import { Onboarding } from "./components/Onboarding";
 import { CodexError } from "./lib/types";
 import type { Network, TokenResult } from "./lib/types";
 import { addRecent, clearRecents, getRecents } from "./lib/recents";
-import { formatAddress, formatPercent, formatUsd } from "./lib/format";
+import { formatAddress, formatPercent, formatUsd, isFlatChange } from "./lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -423,7 +423,7 @@ async function copyAddress(address: string) {
 }
 
 function changeColor(change?: number): Color | undefined {
-  if (change === undefined || Number.isNaN(change)) return undefined;
+  if (change === undefined || Number.isNaN(change) || isFlatChange(change)) return undefined;
   return change >= 0 ? Color.Green : Color.Red;
 }
 

@@ -70,9 +70,16 @@ function formatSmall(abs: number): string {
  * Formats a fractional 24h change (0.04 means +4 %) as a signed percentage string,
  * e.g. "+4.0%" or "-8.2%". Returns "—" for undefined or NaN.
  */
+/** True when a change rounds to 0.0% and should be shown without color. */
+export function isFlatChange(fraction: number): boolean {
+  return Math.abs(fraction * 100) < 0.05;
+}
+
 export function formatPercent(fraction?: number): string {
   if (fraction === undefined || Number.isNaN(fraction)) return MISSING;
   const pct = fraction * 100;
+  // Changes that round to zero get no sign, so they never read as "-0.0%".
+  if (Math.abs(pct) < 0.05) return "0.0%";
   const sign = pct < 0 ? "-" : "+";
   return `${sign}${Math.abs(pct).toFixed(1)}%`;
 }
