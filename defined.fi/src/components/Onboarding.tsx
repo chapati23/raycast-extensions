@@ -24,11 +24,15 @@ const FORMAT_HINT_MIN_LENGTH = 8;
 type CheckResult =
   { state: "ok" } | { state: "ok-quota" } | { state: "invalid" } | { state: "network" } | { state: "failed" };
 
-type Check = { state: "idle" } | { state: "format" } | { state: "checking" } | CheckResult;
+type Check = { state: "idle" } | { state: "format" } | { state: "prefilled" } | { state: "checking" } | CheckResult;
+
+/** When to check a new field value with Codex. */
+type CheckTiming = "debounced" | "now" | "on-save";
 
 const MESSAGES = {
   checking: "Checking key…",
-  checkingClipboard: "Found a key on your clipboard. Checking key…",
+  prefilled: "Found a key on your clipboard. Press ⌘↵ to check and save it.",
+  checkingClipboard: "Checking the key from your clipboard…",
   ok: "✓ Key works",
   okQuota: "✓ Key works, but this month's request allowance is used up",
   format: "This does not look like a Codex.io API key. Use Copy on the API Keys page.",
@@ -103,17 +107,17 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
   const [submitError, setSubmitError] = useState<string>();
 
   const valueRef = useRef("");
-  /** Skip the debounce for the next change (clipboard prefill). */
-  const checkNowRef = useRef(false);
+  /** When to check the next change: after typing pauses, at once, or only on save. */
+  const timingRef = useRef<CheckTiming>("debounced");
   /** The key that came from the clipboard, to word the status line. */
   const clipboardKeyRef = useRef<string | undefined>(undefined);
   /** The last key Codex accepted, with its result. */
   const verifiedRef = useRef<{ key: string; result: CheckResult } | undefined>(undefined);
   const submittingRef = useRef(false);
 
-  function updateValue(next: string, checkNow = false) {
+  function updateValue(next: string, timing: CheckTiming = "debounced") {
     valueRef.current = next;
-    checkNowRef.current = checkNow;
+    timingRef.current = timing;
     setSubmitError(undefined);
     setValue(next);
   }
@@ -121,8 +125,8 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
   // Check the key with Codex after the user stops typing. Abort stale checks.
   useEffect(() => {
     const key = value.trim();
-    const checkNow = checkNowRef.current;
-    checkNowRef.current = false;
+    const timing = timingRef.current;
+    timingRef.current = "debounced";
 
     if (!key) {
       setCheck({ state: "idle" });
@@ -137,6 +141,12 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
       return;
     }
 
+    if (timing === "on-save") {
+      // Clipboard text found on open leaves the Mac only when the user saves it.
+      setCheck({ state: "prefilled" });
+      return;
+    }
+
     setCheck({ state: "checking" });
     const controller = new AbortController();
     const timer = setTimeout(
@@ -146,7 +156,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
         if (isUsable(result)) verifiedRef.current = { key, result };
         setCheck(result);
       },
-      checkNow ? 0 : CHECK_DELAY_MS,
+      timing === "now" ? 0 : CHECK_DELAY_MS,
     );
     return () => {
       clearTimeout(timer);
@@ -170,7 +180,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
     readKeyFromClipboard().then((key) => {
       if (cancelled || !key || valueRef.current.trim()) return;
       clipboardKeyRef.current = key;
-      updateValue(key, true);
+      updateValue(key, "on-save");
     });
     return () => {
       cancelled = true;
@@ -188,7 +198,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
       return;
     }
     clipboardKeyRef.current = key;
-    updateValue(key, true);
+    updateValue(key, "now");
   }
 
   async function submit() {
@@ -241,6 +251,8 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
   let status: string | undefined;
   if (check.state === "checking") {
     status = clipboardKeyRef.current === value.trim() ? MESSAGES.checkingClipboard : MESSAGES.checking;
+  } else if (check.state === "prefilled") {
+    status = MESSAGES.prefilled;
   } else if (check.state === "ok") {
     status = MESSAGES.ok;
   } else if (check.state === "ok-quota") {
