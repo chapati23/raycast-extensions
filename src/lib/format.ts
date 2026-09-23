@@ -100,13 +100,14 @@ function escapeMarkdown(text: string): string {
 }
 
 /**
- * Header for the detail pane: logo, name, symbol, and network. Raycast sizes
+ * Header for the detail pane: logo, name, symbol, network, and short address. Raycast sizes
  * Markdown images through the raycast-width/height query parameters.
  */
 export function tokenHeaderMarkdown(token: {
   name: string;
   symbol: string;
   networkName: string;
+  address: string;
   imageUrl?: string;
 }): string {
   const lines: string[] = [];
@@ -115,6 +116,8 @@ export function tokenHeaderMarkdown(token: {
     lines.push(`![](${token.imageUrl}${sep}raycast-width=56&raycast-height=56)`, "");
   }
   lines.push(`## ${escapeMarkdown(token.name || token.symbol)}`, "");
-  lines.push(`**${escapeMarkdown(token.symbol)}** on ${escapeMarkdown(token.networkName)}`);
+  lines.push(
+    `**${escapeMarkdown(token.symbol)}** on ${escapeMarkdown(token.networkName)} · \`${formatAddress(token.address)}\``,
+  );
   return lines.join("\n");
 }

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Action,
   ActionPanel,
-  Clipboard,
   closeMainWindow,
   Color,
   Icon,
@@ -24,7 +23,7 @@ import { Onboarding } from "./components/Onboarding";
 import { CodexError } from "./lib/types";
 import type { Network, TokenResult } from "./lib/types";
 import { addRecent, clearRecents, getRecents } from "./lib/recents";
-import { formatAddress, formatPercent, formatUsd, isFlatChange, tokenHeaderMarkdown } from "./lib/format";
+import { formatPercent, formatUsd, isFlatChange, tokenHeaderMarkdown } from "./lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -388,13 +387,6 @@ function TokenDetail({ token }: { token: TokenResult }) {
           <List.Item.Detail.Metadata.Label title="Liquidity" text={formatUsd(token.liquidityUsd)} />
           <List.Item.Detail.Metadata.Label title="24h Volume" text={formatUsd(token.volume24Usd)} />
           <List.Item.Detail.Metadata.Label title="Market Cap" text={formatUsd(token.marketCapUsd)} />
-          <List.Item.Detail.Metadata.Separator />
-          <List.Item.Detail.Metadata.TagList title="Contract Address">
-            <List.Item.Detail.Metadata.TagList.Item
-              text={formatAddress(token.address)}
-              onAction={() => void copyAddress(token.address)}
-            />
-          </List.Item.Detail.Metadata.TagList>
         </List.Item.Detail.Metadata>
       }
     />
@@ -413,12 +405,6 @@ async function openOnDefined(token: TokenResult, onOpen: (token: TokenResult) =>
     await open(token.definedUrl);
     await closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Immediate });
   }
-}
-
-/** Detail labels cannot show tooltips, so the truncated address copies the full one on click. */
-async function copyAddress(address: string) {
-  await Clipboard.copy(address);
-  await showToast({ style: Toast.Style.Success, title: "Copied contract address", message: address });
 }
 
 function changeColor(change?: number): Color | undefined {

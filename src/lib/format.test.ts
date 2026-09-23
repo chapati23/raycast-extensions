@@ -97,7 +97,12 @@ describe("formatAddress", () => {
 });
 
 describe("tokenHeaderMarkdown", () => {
-  const token = { name: "Pons", symbol: "PONS", networkName: "Robinhood" };
+  const token = {
+    name: "Pons",
+    symbol: "PONS",
+    networkName: "Robinhood",
+    address: "0x39dbed3a2bd333467115de45665cc57f813c4571",
+  };
 
   it("sizes the logo, appending to an existing query string", () => {
     expect(tokenHeaderMarkdown({ ...token, imageUrl: "https://img/p.png" })).toContain(
@@ -109,9 +114,9 @@ describe("tokenHeaderMarkdown", () => {
   });
 
   it("omits the image when there is none and escapes Markdown in names", () => {
-    const md = tokenHeaderMarkdown({ name: "*Evil* _Coin_", symbol: "EV#L", networkName: "Solana" });
+    const md = tokenHeaderMarkdown({ ...token, name: "*Evil* _Coin_", symbol: "EV#L", networkName: "Solana" });
     expect(md).not.toContain("![]");
     expect(md).toContain("## \\*Evil\\* \\_Coin\\_");
-    expect(md).toContain("**EV\\#L** on Solana");
+    expect(md).toContain("**EV\\#L** on Solana · `0x39db…4571`");
   });
 });
