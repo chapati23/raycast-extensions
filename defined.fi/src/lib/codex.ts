@@ -276,8 +276,6 @@ export function mapFilterTokensResult(
     liquidityUsd: toNumber(row.liquidity),
     volume24Usd: toNumber(row.volume24),
     marketCapUsd: toNumber(row.marketCap),
-    // fdvUsd intentionally left undefined: Codex deprecated FDV in favor of
-    // `marketCap` and TokenFilterResult has no separate fdv field.
     definedUrl,
     explorerUrl,
   };

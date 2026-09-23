@@ -149,9 +149,6 @@ describe("mapFilterTokensResult", () => {
     expect(mapped?.imageUrl).toBeUndefined();
     expect(mapped?.name).toBe("");
     expect(mapped?.symbol).toBe("");
-    // fdvUsd has no source field in the Codex schema (FDV is deprecated in
-    // favor of marketCap) and must never be invented.
-    expect(mapped?.fdvUsd).toBeUndefined();
   });
 
   it("falls back gracefully for a network missing from the cache", () => {

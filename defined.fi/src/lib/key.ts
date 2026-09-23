@@ -25,7 +25,3 @@ export async function saveApiKey(key: string): Promise<void> {
   if (!trimmed) throw new Error("Cannot save an empty API key");
   await LocalStorage.setItem(STORAGE_KEY, trimmed);
 }
-
-export async function clearApiKey(): Promise<void> {
-  await LocalStorage.removeItem(STORAGE_KEY);
-}

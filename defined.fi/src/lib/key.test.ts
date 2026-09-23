@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearApiKey, getApiKey, saveApiKey } from "./key";
+import { getApiKey, saveApiKey } from "./key";
 
 const state = vi.hoisted(() => ({
   store: new Map<string, string>(),
@@ -41,11 +41,5 @@ describe("getApiKey", () => {
     await saveApiKey("saved-key");
     state.preferences = { apiKey: "   " };
     expect(await getApiKey()).toBe("saved-key");
-  });
-
-  it("returns undefined after clearApiKey", async () => {
-    await saveApiKey("saved-key");
-    await clearApiKey();
-    expect(await getApiKey()).toBeUndefined();
   });
 });

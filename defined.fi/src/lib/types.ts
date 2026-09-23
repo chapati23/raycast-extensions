@@ -1,5 +1,4 @@
-// Shared contract between the Codex client, the search UI, and onboarding.
-// Change this file only through the orchestrator.
+// Types shared by the Codex client, the search UI, and onboarding.
 
 /** A Codex network, enriched with the Defined.fi URL slug and a block explorer. */
 export interface Network {
@@ -30,7 +29,6 @@ export interface TokenResult {
   liquidityUsd?: number;
   volume24Usd?: number;
   marketCapUsd?: number;
-  fdvUsd?: number;
   /** https://www.defined.fi/token/{networkSlug}/{address} (verified in a browser) */
   definedUrl: string;
   explorerUrl?: string;
@@ -60,18 +58,3 @@ export class CodexError extends Error {
     this.name = "CodexError";
   }
 }
-
-// Module map (who owns what):
-//   src/lib/codex.ts        — Codex client (package A)
-//     searchTokens(apiKey: string, phrase: string, opts?: SearchOptions): Promise<TokenResult[]>
-//     getNetworks(apiKey: string, signal?: AbortSignal): Promise<Network[]>
-//     validateKey(apiKey: string, signal?: AbortSignal): Promise<void>   // throws CodexError
-//     looksLikeCodexKey(text: string): boolean
-//   src/lib/networks.ts     — slug + explorer mapping (package A)
-//   src/lib/key.ts          — key storage (package C)
-//     getApiKey(): Promise<string | undefined>   // preference overrides LocalStorage
-//     saveApiKey(key: string): Promise<void>
-//     clearApiKey(): Promise<void>
-//   src/components/Onboarding.tsx — setup screen (package C)
-//     export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "missing" | "rejected" }): JSX.Element
-//   src/lib/format.ts, src/lib/recents.ts, src/search.tsx — search UI (package B)
