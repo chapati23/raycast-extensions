@@ -10,14 +10,12 @@
 import type { Network } from "./types";
 
 /**
- * Codex network id -> Defined.fi URL slug, for networks where the Defined.fi
- * slug does not equal the Codex `networkShortName` lowercased.
- *
- * VERIFIED entries below were checked against real https://www.defined.fi
- * pages in a browser on 2026-09-23. Everything else falls back to
- * `networkShortName.toLowerCase()` (see `deriveDefinedSlug`) and is
- * UNVERIFIED — the orchestrator checks new entries in a real browser before
- * they can be trusted.
+ * Defined.fi slugs checked against real https://www.defined.fi pages in a
+ * browser on 2026-09-23. Where Codex's live `networkShortName` was also
+ * checked (eth, sol, base, bsc, arb, opti), it matched; the table pins these
+ * slugs in case Codex renames a short name. Other networks fall back to
+ * `networkShortName.toLowerCase()` (see `deriveDefinedSlug`), which is
+ * unverified.
  */
 export const DEFINED_SLUG_OVERRIDES: Record<number, string> = {
   1: "eth", // Ethereum — VERIFIED
