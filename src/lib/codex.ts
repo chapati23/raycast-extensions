@@ -169,10 +169,10 @@ export function classifyResponse(
     return { kind: "quota", message };
   }
   if (status === 429 || codes.includes("TOO_MANY_REQUESTS")) {
-    return { kind: "rate-limit", message: message || "Rate limited by the Codex API" };
+    return { kind: "rate-limit", message: message || "Rate limited by the Codex.io API" };
   }
   if (!(status >= 200 && status < 300) || errors.length > 0) {
-    return { kind: "unknown", message: message || `Codex API error (HTTP ${status})` };
+    return { kind: "unknown", message: message || `Codex.io API error (HTTP ${status})` };
   }
   return undefined;
 }
@@ -212,7 +212,7 @@ async function codexFetch<T>(
     const classification = classifyResponse(response.status, body);
     if (classification === undefined) {
       if (!body || body.data === undefined) {
-        throw new CodexError("unknown", `Codex API returned an unexpected response (HTTP ${response.status})`);
+        throw new CodexError("unknown", `Codex.io API returned an unexpected response (HTTP ${response.status})`);
       }
       return body.data;
     }

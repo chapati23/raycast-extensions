@@ -24,9 +24,9 @@
       "name": "apiKey",
       "type": "password",
       "required": false,
-      "title": "Codex API Key",
+      "title": "Codex.io API Key",
       "description": "Optional. Overrides the key saved during setup. Get one at dashboard.codex.io.",
-      "placeholder": "Paste your Codex API key"
+      "placeholder": "Paste your Codex.io API key"
     }
   ],
   "dependencies": {

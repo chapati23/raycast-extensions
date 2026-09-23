@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Action,
   ActionPanel,
+  Clipboard,
   Color,
   Icon,
   Keyboard,
@@ -13,14 +14,14 @@ import {
   showToast,
   Toast,
 } from "@raycast/api";
-import { useCachedPromise } from "@raycast/utils";
+import { useCachedPromise, useLocalStorage } from "@raycast/utils";
 import { getNetworks, searchTokens } from "./lib/codex";
 import { getApiKey } from "./lib/key";
 import { Onboarding } from "./components/Onboarding";
 import { CodexError } from "./lib/types";
 import type { Network, TokenResult } from "./lib/types";
 import { addRecent, clearRecents, getRecents } from "./lib/recents";
-import { formatPercent, formatUsd } from "./lib/format";
+import { formatAddress, formatPercent, formatUsd } from "./lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -69,6 +70,10 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
   const [invalidKey, setInvalidKey] = useState(false);
   const [recents, setRecents] = useState<TokenResult[]>([]);
   const [recentsLoaded, setRecentsLoaded] = useState(false);
+
+  // Detail pane is off by default so rows get the full width; ⌘D toggles it.
+  const { value: showDetail = false, setValue: setShowDetail } = useLocalStorage<boolean>("showDetail", false);
+  const toggleDetail = useCallback(() => void setShowDetail(!showDetail), [showDetail, setShowDetail]);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -205,7 +210,7 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
       throttle={false}
       searchText={searchText}
       onSearchTextChange={setSearchText}
-      isShowingDetail={items.length > 0}
+      isShowingDetail={showDetail && items.length > 0}
       searchBarPlaceholder="Token name, symbol, or address"
       navigationTitle="Defined.fi"
       searchBarAccessory={<NetworkDropdown networks={networks ?? []} onChange={setNetworkId} />}
@@ -224,6 +229,8 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
                 key={token.id}
                 token={token}
                 onOpen={handleOpen}
+                showDetail={showDetail}
+                onToggleDetail={toggleDetail}
                 showClearRecents
                 onClearRecents={handleClearRecents}
               />
@@ -235,11 +242,11 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
       ) : emptyState === "quota" ? (
         <List.EmptyView
           icon={Icon.ExclamationMark}
-          title="Monthly Codex limit reached"
-          description="The free Codex plan includes 10,000 requests per month. Upgrade your plan or wait for the next monthly cycle."
+          title="Monthly Codex.io limit reached"
+          description="The free Codex.io plan includes 10,000 requests per month. Upgrade your plan or wait for the next monthly cycle."
           actions={
             <ActionPanel>
-              <Action.OpenInBrowser title="Open Codex Dashboard" url="https://dashboard.codex.io/dashboard" />
+              <Action.OpenInBrowser title="Open Codex.io Dashboard" url="https://dashboard.codex.io/dashboard" />
             </ActionPanel>
           }
         />
@@ -252,7 +259,15 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
       ) : emptyState === "error" ? (
         <List.EmptyView icon={Icon.Warning} title="Search failed" description="Edit the search to try again." />
       ) : (
-        results.map((token) => <TokenListItem key={token.id} token={token} onOpen={handleOpen} />)
+        results.map((token) => (
+          <TokenListItem
+            key={token.id}
+            token={token}
+            onOpen={handleOpen}
+            showDetail={showDetail}
+            onToggleDetail={toggleDetail}
+          />
+        ))
       )}
     </List>
   );
@@ -276,11 +291,15 @@ function NetworkDropdown({ networks, onChange }: { networks: Network[]; onChange
 function TokenListItem({
   token,
   onOpen,
+  showDetail,
+  onToggleDetail,
   showClearRecents,
   onClearRecents,
 }: {
   token: TokenResult;
   onOpen: (token: TokenResult) => void;
+  showDetail: boolean;
+  onToggleDetail: () => void;
   showClearRecents?: boolean;
   onClearRecents?: () => void;
 }) {
@@ -294,9 +313,16 @@ function TokenListItem({
       subtitle={token.name}
       icon={token.imageUrl ? { source: token.imageUrl, fallback: Icon.Coins } : Icon.Coins}
       accessories={[
-        { tag: token.networkSlug.toUpperCase() },
-        { text: formatUsd(token.priceUsd) },
-        { text: color ? { value: changeText, color } : changeText },
+        { tag: token.networkSlug.toUpperCase(), tooltip: token.networkName },
+        { text: formatUsd(token.priceUsd), tooltip: "Price" },
+        { text: color ? { value: changeText, color } : changeText, tooltip: "24h change" },
+        // With the detail pane open these live there instead.
+        ...(showDetail
+          ? []
+          : [
+              { text: `L ${formatUsd(token.liquidityUsd)}`, tooltip: "Liquidity" },
+              { text: `V ${formatUsd(token.volume24Usd)}`, tooltip: "24h volume" },
+            ]),
       ]}
       detail={<TokenDetail token={token} />}
       actions={
@@ -315,6 +341,12 @@ function TokenListItem({
                 shortcut={{ modifiers: ["cmd", "shift"], key: "e" }}
               />
             )}
+            <Action
+              title={showDetail ? "Hide Details" : "Show Details"}
+              icon={Icon.Sidebar}
+              shortcut={{ modifiers: ["cmd"], key: "d" }}
+              onAction={onToggleDetail}
+            />
           </ActionPanel.Section>
           {showClearRecents && (
             <ActionPanel.Section>
@@ -327,7 +359,7 @@ function TokenListItem({
             </ActionPanel.Section>
           )}
           <ActionPanel.Section>
-            <Action title="Codex API Key…" icon={Icon.Key} onAction={openExtensionPreferences} />
+            <Action title="Codex.io API Key…" icon={Icon.Key} onAction={openExtensionPreferences} />
           </ActionPanel.Section>
         </ActionPanel>
       }
@@ -354,11 +386,22 @@ function TokenDetail({ token }: { token: TokenResult }) {
           <List.Item.Detail.Metadata.Label title="24h Volume" text={formatUsd(token.volume24Usd)} />
           <List.Item.Detail.Metadata.Label title="Market Cap" text={formatUsd(token.marketCapUsd)} />
           <List.Item.Detail.Metadata.Separator />
-          <List.Item.Detail.Metadata.Label title="Contract Address" text={token.address} />
+          <List.Item.Detail.Metadata.TagList title="Contract Address">
+            <List.Item.Detail.Metadata.TagList.Item
+              text={formatAddress(token.address)}
+              onAction={() => void copyAddress(token.address)}
+            />
+          </List.Item.Detail.Metadata.TagList>
         </List.Item.Detail.Metadata>
       }
     />
   );
+}
+
+/** Detail labels cannot show tooltips, so the truncated address copies the full one on click. */
+async function copyAddress(address: string) {
+  await Clipboard.copy(address);
+  await showToast({ style: Toast.Style.Success, title: "Copied contract address", message: address });
 }
 
 function changeColor(change?: number): Color | undefined {

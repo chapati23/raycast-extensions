@@ -31,11 +31,11 @@ const MESSAGES = {
   checkingClipboard: "Found a key on your clipboard. Checking key…",
   ok: "✓ Key works",
   okQuota: "✓ Key works, but this month's request allowance is used up",
-  format: "This does not look like a Codex API key. Use Copy on the API Keys page.",
+  format: "This does not look like a Codex.io API key. Use Copy on the API Keys page.",
   invalid: "Key rejected — copy it again from the API Keys page",
-  network: "Couldn't reach Codex — check your connection",
+  network: "Couldn't reach Codex.io — check your connection",
   failed: "Couldn't check the key — try again in a moment",
-  empty: "Paste your Codex API key first",
+  empty: "Paste your Codex.io API key first",
 };
 
 /** Asks Codex whether the key works. Resolves to a result; never throws. */
@@ -81,9 +81,9 @@ function fieldError(check: Check): string | undefined {
 function failureTitle(result: CheckResult): string {
   switch (result.state) {
     case "invalid":
-      return "Codex rejected the key";
+      return "Codex.io rejected the key";
     case "network":
-      return "Couldn't reach Codex";
+      return "Couldn't reach Codex.io";
     default:
       return "Couldn't check the key";
   }
@@ -182,7 +182,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
     if (!key) {
       await showToast({
         style: Toast.Style.Failure,
-        title: "No Codex API key on the clipboard",
+        title: "No Codex.io API key on the clipboard",
         message: "Click Copy next to your key on the API Keys page, then try again.",
       });
       return;
@@ -222,7 +222,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
       }
 
       await saveApiKey(key);
-      await showToast({ style: Toast.Style.Success, title: "Codex key saved" });
+      await showToast({ style: Toast.Style.Success, title: "Codex.io key saved" });
       onDone(key);
     } catch {
       await showToast({ style: Toast.Style.Failure, title: "Couldn't save the key", message: "Try again." });
@@ -232,7 +232,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
   }
 
   const openSignup = (shortcut?: Keyboard.Shortcut) => (
-    <Action.OpenInBrowser title="Open Codex Signup" url={SIGNUP_URL} shortcut={shortcut} />
+    <Action.OpenInBrowser title="Open Codex.io Signup" url={SIGNUP_URL} shortcut={shortcut} />
   );
   const openApiKeys = (shortcut?: Keyboard.Shortcut) => (
     <Action.OpenInBrowser title="Open API Keys Page" url={API_KEYS_URL} shortcut={shortcut} />
@@ -251,7 +251,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
 
   return (
     <Form
-      navigationTitle={rejected ? "Update Codex API Key" : "Set Up Defined.fi Search"}
+      navigationTitle={rejected ? "Update Codex.io API Key" : "Set Up Defined.fi Search"}
       actions={
         <ActionPanel>
           {/* In a Form, the first action runs on ⌘↵ and the second on ⌘⇧↵. */}
@@ -265,15 +265,15 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
     >
       {rejected ? (
         <>
-          <Form.Description text="Codex rejected your saved API key. It may be revoked or mistyped. Paste a working key to continue." />
+          <Form.Description text="Codex.io rejected your saved API key. It may be revoked or mistyped. Paste a working key to continue." />
           <Form.Description title="1. Copy" text="Open the API Keys page (⌘⇧↵) and click Copy next to your key." />
         </>
       ) : (
         <>
-          <Form.Description text="Defined.fi's token data comes from Codex. Add your own Codex API key to search with your own free allowance. Setup takes about 1 minute and costs $1 once." />
+          <Form.Description text="Defined.fi's token data comes from Codex.io. Add your own Codex.io API key to search with your own free allowance. Setup takes about 1 minute and costs $1 once." />
           <Form.Description
             title="1. Sign up"
-            text="Create a Codex account (⌘⇧↵). One-time $1 activation by card or 1 USDC. No subscription; 10,000 requests a month."
+            text="Create a Codex.io account (⌘⇧↵). One-time $1 activation by card or 1 USDC. No subscription; 10,000 requests a month."
           />
           <Form.Description title="2. Copy" text="Open the API Keys page (⌘⇧K) and click Copy next to your key." />
         </>
@@ -281,7 +281,7 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
       <Form.PasswordField
         id="apiKey"
         title={rejected ? "2. Paste" : "3. Paste"}
-        placeholder="Paste your Codex API key"
+        placeholder="Paste your Codex.io API key"
         value={value}
         onChange={(next) => updateValue(next)}
         error={submitError ?? fieldError(check)}
