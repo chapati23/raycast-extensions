@@ -48,6 +48,14 @@ describe("recents", () => {
     expect(saved.marketCapUsd).toBeUndefined();
   });
 
+  it("does not overwrite stored recents when the read fails", async () => {
+    await addRecent({ ...token, id: "0xold:1", address: "0xold" });
+    state.failReads = true;
+    await expect(addRecent(token)).rejects.toThrow();
+    state.failReads = false;
+    expect((await getRecents()).map((t) => t.id)).toEqual(["0xold:1"]);
+  });
+
   it("treats a failed storage read as an empty list", async () => {
     state.failReads = true;
     await expect(getRecents()).resolves.toEqual([]);

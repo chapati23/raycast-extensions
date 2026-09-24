@@ -9,15 +9,24 @@ const MAX_RECENTS = 10;
 
 /**
  * Returns the stored recent tokens, most recently opened first.
- * Malformed or missing storage is treated as an empty list.
+ * Missing or malformed storage is an empty list; a failed read throws.
  */
-export async function getRecents(): Promise<TokenResult[]> {
+async function readRecents(): Promise<TokenResult[]> {
+  const raw = await LocalStorage.getItem<string>(STORAGE_KEY);
+  if (!raw) return [];
   try {
-    const raw = await LocalStorage.getItem<string>(STORAGE_KEY);
-    if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isTokenResult);
+  } catch {
+    return [];
+  }
+}
+
+/** Recent tokens for display. A failed read shows as an empty list. */
+export async function getRecents(): Promise<TokenResult[]> {
+  try {
+    return await readRecents();
   } catch {
     return [];
   }
@@ -29,7 +38,8 @@ export async function getRecents(): Promise<TokenResult[]> {
  * was already present (deduped by id), and caps the list at MAX_RECENTS.
  */
 export async function addRecent(token: TokenResult): Promise<void> {
-  const current = await getRecents();
+  // A failed read throws here, so it never overwrites recents it could not load.
+  const current = await readRecents();
   const { id, address, networkId, networkName, networkSlug, name, symbol, imageUrl, definedUrl, explorerUrl } = token;
   const entry: TokenResult = {
     id,

@@ -417,10 +417,11 @@ function TokenDetail({ token, metrics }: { token: TokenResult; metrics: boolean 
 async function openOnDefined(token: TokenResult, onOpen: (token: TokenResult) => Promise<void>) {
   try {
     await onOpen(token);
-  } finally {
-    await open(token.definedUrl);
-    await closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Immediate });
+  } catch {
+    // Recents are best-effort; a storage failure must not block opening the page.
   }
+  await open(token.definedUrl);
+  await closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Immediate });
 }
 
 function changeColor(change?: number): Color | undefined {
