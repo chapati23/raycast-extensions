@@ -40,11 +40,14 @@ export default function Command() {
 
   useEffect(() => {
     let cancelled = false;
-    getApiKey().then((key) => {
-      if (cancelled) return;
-      setApiKey(key);
-      setIsLoadingKey(false);
-    });
+    // A failed storage read falls through to setup instead of loading forever.
+    getApiKey()
+      .catch(() => undefined)
+      .then((key) => {
+        if (cancelled) return;
+        setApiKey(key);
+        setIsLoadingKey(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -119,7 +122,11 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
   // Cancels the in-flight request when either changes again, or on unmount.
   useEffect(() => {
     const phrase = debouncedText.trim();
-    if (phrase === "") return;
+    if (phrase === "") {
+      // Clearing the field aborts the in-flight search, whose own reset is skipped.
+      setIsSearching(false);
+      return;
+    }
     const key = queryKey(phrase, networkId);
 
     const controller = new AbortController();
