@@ -94,6 +94,19 @@ export function formatAddress(a?: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+/**
+ * Title and subtitle for a token row. Codex can return a token with no name
+ * or symbol, so fall back to the name, then to the shortened address.
+ */
+export function tokenLabels(token: { name: string; symbol: string; address: string }): {
+  title: string;
+  subtitle: string;
+} {
+  if (token.symbol) return { title: token.symbol, subtitle: token.name };
+  if (token.name) return { title: token.name, subtitle: formatAddress(token.address) };
+  return { title: formatAddress(token.address), subtitle: "" };
+}
+
 /** Escapes characters that Markdown would treat as formatting in token names. */
 function escapeMarkdown(text: string): string {
   return text.replace(/([\\`*_[\]<>#|~])/g, "\\$1");
@@ -131,9 +144,9 @@ export function tokenHeaderMarkdown(token: {
   const lines: string[] = [];
   const imageUrl = token.imageUrl && markdownImageUrl(token.imageUrl);
   if (imageUrl) lines.push(`![](${imageUrl})`, "");
-  lines.push(`## ${escapeMarkdown(token.name || token.symbol)}`, "");
+  lines.push(`## ${escapeMarkdown(token.name || token.symbol || formatAddress(token.address))}`, "");
   lines.push(
-    `**${escapeMarkdown(token.symbol)}** on ${escapeMarkdown(token.networkName)} · \`${formatAddress(token.address)}\``,
+    `${token.symbol ? `**${escapeMarkdown(token.symbol)}** on` : "On"} ${escapeMarkdown(token.networkName)} · \`${formatAddress(token.address)}\``,
   );
   return lines.join("\n");
 }

@@ -23,7 +23,7 @@ import { Onboarding } from "./components/Onboarding";
 import { CodexError } from "./lib/types";
 import type { Network, TokenResult } from "./lib/types";
 import { addRecent, clearRecents, getRecents } from "./lib/recents";
-import { formatPercent, formatUsd, isFlatChange, tokenHeaderMarkdown } from "./lib/format";
+import { formatPercent, formatUsd, isFlatChange, tokenHeaderMarkdown, tokenLabels } from "./lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -317,8 +317,8 @@ function TokenListItem({
   return (
     <List.Item
       id={token.id}
-      title={token.symbol}
-      subtitle={token.name}
+      title={tokenLabels(token).title}
+      subtitle={tokenLabels(token).subtitle}
       icon={token.imageUrl ? { source: token.imageUrl, fallback: Icon.Coins } : Icon.Coins}
       accessories={[
         { tag: token.networkSlug.toUpperCase(), tooltip: token.networkName },

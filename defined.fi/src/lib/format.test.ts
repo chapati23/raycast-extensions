@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAddress, formatPercent, formatUsd, tokenHeaderMarkdown } from "./format";
+import { formatAddress, formatPercent, formatUsd, tokenHeaderMarkdown, tokenLabels } from "./format";
 
 describe("formatUsd", () => {
   it("returns an em dash for undefined", () => {
@@ -126,5 +126,21 @@ describe("tokenHeaderMarkdown", () => {
     expect(md).not.toContain("![]");
     expect(md).toContain("## \\*Evil\\* \\_Coin\\_");
     expect(md).toContain("**EV\\#L** on Solana · `0x39db…4571`");
+  });
+});
+
+describe("tokenLabels", () => {
+  const address = "0x39dbed3a2bd333467115de45665cc57f813c4571";
+
+  it("falls back to the name, then the short address, when fields are missing", () => {
+    expect(tokenLabels({ name: "Pons", symbol: "PONS", address })).toEqual({ title: "PONS", subtitle: "Pons" });
+    expect(tokenLabels({ name: "Pons", symbol: "", address })).toEqual({ title: "Pons", subtitle: "0x39db…4571" });
+    expect(tokenLabels({ name: "", symbol: "", address })).toEqual({ title: "0x39db…4571", subtitle: "" });
+  });
+
+  it("gives the detail header a heading when name and symbol are empty", () => {
+    const md = tokenHeaderMarkdown({ name: "", symbol: "", networkName: "Base", address });
+    expect(md).toContain("## 0x39db…4571");
+    expect(md).toContain("On Base · `0x39db…4571`");
   });
 });
