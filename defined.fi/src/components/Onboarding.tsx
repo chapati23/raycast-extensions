@@ -40,6 +40,7 @@ const MESSAGES = {
   network: "Couldn't reach Codex.io — check your connection",
   failed: "Couldn't check the key — try again in a moment",
   empty: "Paste your Codex.io API key first",
+  inPreferences: "Your key is set in the extension preferences. Update it there: ⌘K → Open Extension Preferences.",
 };
 
 /** Asks Codex whether the key works. Resolves to a result; never throws. */
@@ -206,6 +207,11 @@ export function Onboarding(props: { onDone: (apiKey: string) => void; reason?: "
     const key = valueRef.current.trim();
     if (!key) {
       setSubmitError(MESSAGES.empty);
+      return;
+    }
+    if (keyInPreferences) {
+      // A key saved here would sit under the preference and never be used.
+      setSubmitError(MESSAGES.inPreferences);
       return;
     }
 

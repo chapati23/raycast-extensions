@@ -12,10 +12,9 @@ const MAX_RECENTS = 10;
  * Malformed or missing storage is treated as an empty list.
  */
 export async function getRecents(): Promise<TokenResult[]> {
-  const raw = await LocalStorage.getItem<string>(STORAGE_KEY);
-  if (!raw) return [];
-
   try {
+    const raw = await LocalStorage.getItem<string>(STORAGE_KEY);
+    if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isTokenResult);
@@ -25,12 +24,26 @@ export async function getRecents(): Promise<TokenResult[]> {
 }
 
 /**
- * Records a token as the most recently opened one. Moves it to the front if it
+ * Records a token as the most recently opened one. Only identity fields are
+ * stored: prices and volumes would be stale by the time the list is shown. Moves it to the front if it
  * was already present (deduped by id), and caps the list at MAX_RECENTS.
  */
 export async function addRecent(token: TokenResult): Promise<void> {
   const current = await getRecents();
-  const next = [token, ...current.filter((t) => t.id !== token.id)].slice(0, MAX_RECENTS);
+  const { id, address, networkId, networkName, networkSlug, name, symbol, imageUrl, definedUrl, explorerUrl } = token;
+  const entry: TokenResult = {
+    id,
+    address,
+    networkId,
+    networkName,
+    networkSlug,
+    name,
+    symbol,
+    imageUrl,
+    definedUrl,
+    explorerUrl,
+  };
+  const next = [entry, ...current.filter((t) => t.id !== token.id)].slice(0, MAX_RECENTS);
   await LocalStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
 

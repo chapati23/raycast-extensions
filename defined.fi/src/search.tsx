@@ -241,7 +241,7 @@ function SearchView({ apiKey, onApiKeyChange }: { apiKey: string; onApiKeyChange
                 onOpen={handleOpen}
                 showDetail={showDetail}
                 onToggleDetail={toggleDetail}
-                showClearRecents
+                recent
                 onClearRecents={handleClearRecents}
               />
             ))}
@@ -303,19 +303,17 @@ function TokenListItem({
   onOpen,
   showDetail,
   onToggleDetail,
-  showClearRecents,
+  recent,
   onClearRecents,
 }: {
   token: TokenResult;
   onOpen: (token: TokenResult) => Promise<void>;
   showDetail: boolean;
   onToggleDetail: () => void;
-  showClearRecents?: boolean;
+  /** A recent token: stored without metrics, and offers Clear Recents. */
+  recent?: boolean;
   onClearRecents?: () => void;
 }) {
-  const color = changeColor(token.change24);
-  const changeText = formatPercent(token.change24);
-
   return (
     <List.Item
       id={token.id}
@@ -324,17 +322,10 @@ function TokenListItem({
       icon={token.imageUrl ? { source: token.imageUrl, fallback: Icon.Coins } : Icon.Coins}
       accessories={[
         { tag: token.networkSlug.toUpperCase(), tooltip: token.networkName },
-        { text: formatUsd(token.priceUsd), tooltip: "Price" },
-        { text: color ? { value: changeText, color } : changeText, tooltip: "24h change" },
-        // With the detail pane open these live there instead.
-        ...(showDetail
-          ? []
-          : [
-              { text: `Liq ${formatUsd(token.liquidityUsd)}`, tooltip: "Liquidity" },
-              { text: `Vol ${formatUsd(token.volume24Usd)}`, tooltip: "24h volume" },
-            ]),
+        // Recents store no metrics; old numbers would read as current.
+        ...(recent ? [] : metricAccessories(token, showDetail)),
       ]}
-      detail={<TokenDetail token={token} />}
+      detail={<TokenDetail token={token} metrics={!recent} />}
       actions={
         <ActionPanel>
           <ActionPanel.Section>
@@ -358,7 +349,7 @@ function TokenListItem({
               onAction={onToggleDetail}
             />
           </ActionPanel.Section>
-          {showClearRecents && (
+          {recent && (
             <ActionPanel.Section>
               <Action
                 title="Clear Recents"
@@ -377,7 +368,23 @@ function TokenListItem({
   );
 }
 
-function TokenDetail({ token }: { token: TokenResult }) {
+function metricAccessories(token: TokenResult, showDetail: boolean): List.Item.Accessory[] {
+  const color = changeColor(token.change24);
+  const changeText = formatPercent(token.change24);
+  return [
+    { text: formatUsd(token.priceUsd), tooltip: "Price" },
+    { text: color ? { value: changeText, color } : changeText, tooltip: "24h change" },
+    // With the detail pane open these live there instead.
+    ...(showDetail
+      ? []
+      : [
+          { text: `Liq ${formatUsd(token.liquidityUsd)}`, tooltip: "Liquidity" },
+          { text: `Vol ${formatUsd(token.volume24Usd)}`, tooltip: "24h volume" },
+        ]),
+  ];
+}
+
+function TokenDetail({ token, metrics }: { token: TokenResult; metrics: boolean }) {
   const color = changeColor(token.change24);
   const changeText = formatPercent(token.change24);
 
@@ -385,16 +392,18 @@ function TokenDetail({ token }: { token: TokenResult }) {
     <List.Item.Detail
       markdown={tokenHeaderMarkdown(token)}
       metadata={
-        <List.Item.Detail.Metadata>
-          <List.Item.Detail.Metadata.Label title="Price" text={formatUsd(token.priceUsd)} />
-          <List.Item.Detail.Metadata.Label
-            title="24h Change"
-            text={color ? { value: changeText, color } : changeText}
-          />
-          <List.Item.Detail.Metadata.Label title="Liquidity" text={formatUsd(token.liquidityUsd)} />
-          <List.Item.Detail.Metadata.Label title="24h Volume" text={formatUsd(token.volume24Usd)} />
-          <List.Item.Detail.Metadata.Label title="Market Cap" text={formatUsd(token.marketCapUsd)} />
-        </List.Item.Detail.Metadata>
+        metrics && (
+          <List.Item.Detail.Metadata>
+            <List.Item.Detail.Metadata.Label title="Price" text={formatUsd(token.priceUsd)} />
+            <List.Item.Detail.Metadata.Label
+              title="24h Change"
+              text={color ? { value: changeText, color } : changeText}
+            />
+            <List.Item.Detail.Metadata.Label title="Liquidity" text={formatUsd(token.liquidityUsd)} />
+            <List.Item.Detail.Metadata.Label title="24h Volume" text={formatUsd(token.volume24Usd)} />
+            <List.Item.Detail.Metadata.Label title="Market Cap" text={formatUsd(token.marketCapUsd)} />
+          </List.Item.Detail.Metadata>
+        )
       }
     />
   );
