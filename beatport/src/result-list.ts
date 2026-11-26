@@ -100,7 +100,7 @@ export function updateList(
         0,
         old,
       );
-    else display.push({ title: oldSection.title, rows: [old] });
+    else display.splice(previous.sections.indexOf(oldSection), 0, { title: oldSection.title, rows: [old] });
   }
   return { ...next, selectedId: id, sections: display, settledSections: sections };
 }

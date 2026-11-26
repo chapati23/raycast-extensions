@@ -32,7 +32,7 @@ describe("progressive Beatport search", () => {
     const previous = updateList(undefined, "song", related, true);
     const list = updateList(previous, "song", { ...related, tracks: [{ ...track, match: "exact" }] }, false);
     expect(list.selectedId).toBe("catalog");
-    expect(list.sections.flatMap((s) => s.rows).some((r) => r.id === "catalog")).toBe(true);
+    expect(list.sections[0].rows[0].id).toBe("catalog");
     expect(list.settledSections?.[0].title).toBe("Matching Mixes");
   });
 });
