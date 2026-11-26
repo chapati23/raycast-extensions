@@ -10,6 +10,8 @@ interface Page {
 export interface Track extends Page {
   artist?: string;
   releaseDetail?: string;
+  match?: "exact" | "url";
+  urlTitle?: boolean;
 }
 
 export interface ChartEntry {
@@ -21,6 +23,7 @@ export interface ChartEntry {
 
 export interface Results {
   profile?: Page;
+  mixSearch?: boolean;
   chart: ChartEntry[];
   tracks: Track[];
 }
@@ -68,18 +71,20 @@ const releaseFormat = new Intl.DateTimeFormat("en-GB", {
 });
 
 function releaseDate(text?: string | null): string | undefined {
-  const match = text?.match(/^Released:[ \t]*\r?\n\s*(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})[ \t]*$/m);
-  if (!match) return;
-  const month = Number(match[1]);
-  const day = Number(match[2]);
-  // Beatport's US date format uses two or four digits for the release year.
-  const year = match[3].length === 4 ? Number(match[3]) : Number(match[3]) + (Number(match[3]) >= 70 ? 1900 : 2000);
+  const value = text?.match(/^Released:[ \t]*\r?\n\s*([\d/-]+)[ \t]*$/m)?.[1];
+  const us = value?.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})$/);
+  const iso = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!us && !iso) return;
+  const [, y, m, d] = iso ?? ["", us![3], us![1], us![2]];
+  const month = Number(m);
+  const day = Number(d);
+  const year = y.length === 4 ? Number(y) : Number(y) + (Number(y) >= 70 ? 1900 : 2000);
   const date = new Date(Date.UTC(year, month - 1, day));
   if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day)
     return releaseFormat.format(date);
 }
 
-function labelDuplicates(visible: Track[], dates: Map<string, string | undefined>) {
+function labelDuplicates(visible: Track[], dates: Map<string, string | undefined>, labels: Map<string, string>) {
   for (const track of visible) {
     const peers = visible.filter(
       (other) =>
@@ -87,14 +92,37 @@ function labelDuplicates(visible: Track[], dates: Map<string, string | undefined
     );
     if (peers.length < 2) continue;
     const date = dates.get(track.id);
-    track.releaseDetail =
-      date && peers.every((other) => other.id === track.id || dates.get(other.id) !== date) ? date : "ID " + track.id;
+    const label = labels.get(track.id);
+    const others = peers.filter((other) => other.id !== track.id);
+    if (date && others.every((other) => dates.get(other.id) !== date)) track.releaseDetail = date;
+    else if (label && others.every((other) => labels.get(other.id) !== label)) track.releaseDetail = label;
+    else track.releaseDetail = "ID " + track.id;
   }
 }
 
-export function parseResults(hits: Hit[], query: string): Results {
+function words(text: string) {
+  return nameKey(text)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function creditsKey(text: string) {
+  return text.split(/[,•]/).map(words).filter(Boolean).sort().join("|");
+}
+
+function sameMix(track: Track, entry: ChartEntry) {
+  return (
+    !track.urlTitle &&
+    !!track.artist &&
+    words(track.title) === words(entry.title) &&
+    creditsKey(track.artist) === creditsKey(entry.credits)
+  );
+}
+
+export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry): Results {
   const tracks = new Map<string, Track>();
   const dates = new Map<string, string | undefined>();
+  const labels = new Map<string, string>();
   let profile: Page | undefined;
   let chart: ChartEntry[] = [];
   for (const hit of hits) {
@@ -118,14 +146,24 @@ export function parseResults(hits: Hit[], query: string): Results {
       continue;
     }
 
-    const name = hit.title
-      .replace(/\s*\|[^|]*Beatport\s*$/i, "")
-      .replace(/\s+\[[^\]]+\]$/, "")
-      .trim();
-    if (!name || tracks.has(id)) continue;
+    // Exa may truncate its title even when the indexed page still has the full header.
+    const header = hit.text?.split(/\r?\n/, 1)[0];
+    const sourceTitle = header?.includes(" - ") && /\|[^|]*Beatport\s*$/i.test(header) ? header : hit.title;
+    const pageTitle = sourceTitle.replace(/\s*\|[^|]*Beatport\s*$/i, "").trim();
+    const label = pageTitle.match(/\s+\[([^\]]+)\]$/)?.[1];
+    const name = pageTitle.replace(/\s+\[[^\]]+\]$/, "").trim();
+    const placeholder = !name || /^Unknown Artist - Unknown(?: \(Unknown Mix\))?$/i.test(name);
+    const existing = tracks.get(id);
+    if (existing && !existing.urlTitle) continue;
+    if (placeholder) {
+      if (!existing && slug.length > 2 && /[a-z]{2}/i.test(slug))
+        tracks.set(id, { id, url, title: slug.replace(/-/g, " "), urlTitle: true });
+      continue;
+    }
     const split = name.indexOf(" - ");
     const hasArtist = split > 0 && split + 3 < name.length;
     dates.set(id, releaseDate(hit.text));
+    if (label && !/^unknown label$/i.test(label)) labels.set(id, label);
     tracks.set(id, {
       id,
       url,
@@ -136,19 +174,33 @@ export function parseResults(hits: Hit[], query: string): Results {
   const matches = [...tracks.values()].filter((track) => !profile || creditedTo(track.artist ?? "", profile.title));
   const linked = new Set<string>();
   for (const entry of chart) {
-    const candidates = matches.filter(
-      (track) =>
-        nameKey(track.title.replace(/[()]/g, "")) === nameKey(entry.title.replace(/[()]/g, "")) &&
-        nameKey(track.artist ?? "") === nameKey(entry.credits),
-    );
+    const candidates = matches.filter((track) => sameMix(track, entry));
     if (candidates.length === 1) {
       entry.trackUrl = candidates[0].url;
       linked.add(candidates[0].id);
     }
   }
+  const mixSearch = !profile && (!!wanted || /\b(?:mix|remix|edit|dub|version|extended)\s*\)?$/i.test(query));
+  if (mixSearch) {
+    const input = words(query);
+    for (const track of matches) {
+      if (track.urlTitle) {
+        const hint = words(track.title);
+        if (hint && (" " + input + " ").includes(" " + hint + " ")) track.match = "url";
+      } else if (
+        wanted
+          ? sameMix(track, wanted)
+          : track.artist && [words(track.title), words(track.artist + " " + track.title)].includes(input)
+      ) {
+        track.match = "exact";
+      }
+    }
+    const weight = (track: Track) => (track.match === "exact" ? 2 : track.match === "url" ? 1 : 0);
+    matches.sort((a, b) => weight(b) - weight(a));
+  }
   const visible = matches.filter((track) => !linked.has(track.id)).slice(0, 10);
-  labelDuplicates(visible, dates);
-  return { profile, chart, tracks: visible };
+  labelDuplicates(visible, dates, labels);
+  return { profile, chart, tracks: visible, ...(mixSearch && { mixSearch: true }) };
 }
 
 function isHit(value: unknown): value is Hit {
@@ -163,34 +215,87 @@ function isHit(value: unknown): value is Hit {
   );
 }
 
-export async function searchBeatport(query: string, signal: AbortSignal): Promise<Results> {
+export async function searchBeatport(query: string, signal: AbortSignal, wanted?: ChartEntry): Promise<Results> {
   const client = new Client({ name: "beatport-search-raycast", version: "0.2.0" });
   const transport = new StreamableHTTPClientTransport(new URL("https://mcp.exa.ai/mcp?tools=web_search_advanced_exa"));
   const options = { signal, timeout: 15000 };
-  try {
-    await client.connect(transport, options);
+  async function lookup(text: string, type: "lite" | "auto", domains: string[], count: number): Promise<Hit[]> {
     signal.throwIfAborted();
-    const result = await client.callTool(
+    const response = await client.callTool(
       {
         name: "web_search_advanced_exa",
-        arguments: {
-          query,
-          type: "lite",
-          includeDomains: ["beatport.com/artist", "beatport.com/track"],
-          numResults: 18,
-          textMaxCharacters: 12000,
-        },
+        arguments: { query: text, type, includeDomains: domains, numResults: count, textMaxCharacters: type === "auto" ? 20000 : 12000 },
       },
       undefined,
       options,
     );
-    if (!Array.isArray(result.content)) throw new Error("Exa returned an unexpected response.");
-    const text = result.content.find((item) => item.type === "text")?.text;
-    if (result.isError || typeof text !== "string")
-      throw new Error(/rate.limit|429/i.test(text ?? "") ? "Exa rate limit" : "Exa search failed");
-    const data = JSON.parse(text);
-    if (!Array.isArray(data.results)) throw new Error("Exa returned an unexpected response.");
-    return parseResults(data.results.filter(isHit), query);
+    if (!Array.isArray(response.content)) throw new Error("Exa returned an unexpected response.");
+    const payload = response.content.find((item) => item.type === "text")?.text;
+    if (response.isError || typeof payload !== "string")
+      throw new Error(/rate.limit|429/i.test(payload ?? "") ? "Exa rate limit" : "Exa search failed");
+    const data = JSON.parse(payload);
+    if (data && !("results" in data) && typeof data.requestId === "string" && typeof data.searchTime === "number")
+      return [];
+    if (!Array.isArray(data?.results)) throw new Error("Exa returned an unexpected response.");
+    return data.results.filter(isHit);
+  }
+
+  try {
+    await client.connect(transport, options);
+    const hits = await lookup(query, "lite", ["beatport.com/artist", "beatport.com/track"], 18);
+    let result = parseResults(hits, query, wanted);
+    // Supplemental lookups can fail independently. Keep the first page usable.
+    try {
+      if (result.mixSearch && !result.tracks.some((track) => track.match === "exact")) {
+        const focused =
+          query
+            .replace(/[()]/g, " ")
+            .replace(/\boriginal mix\s*$/i, "")
+            .replace(/\s+/g, " ")
+            .trim() || query;
+        const credit =
+          wanted?.credits ??
+          result.tracks
+            .map((track) => track.artist)
+            .filter((artist): artist is string => !!artist && nameKey(focused).startsWith(nameKey(artist) + " "))
+            .sort((a, b) => b.length - a.length)[0];
+        const title = wanted?.title ?? (credit ? focused.slice(credit.length).trim() : "");
+        const slug = words(title.replace(/\s+original mix$/i, "")).replace(/ /g, "-");
+        const domains =
+          slug && /\(original mix\)\s*$/i.test(query) ? ["beatport.com/track/" + slug] : ["beatport.com/track"];
+        const extra = await lookup(focused, "auto", domains, 8);
+        return parseResults([...extra, ...hits], query, wanted);
+      }
+      if (
+        !result.chart.length &&
+        (result.profile || result.tracks.some((track) => creditedTo(track.artist ?? "", query)))
+      ) {
+        hits.push(...(await lookup('"' + query + '" Beatport artist', "auto", ["beatport.com/artist"], 12)));
+        result = parseResults(hits, query, wanted);
+      }
+      const unresolved = result.chart.filter((entry) => !entry.trackUrl).slice(0, 3);
+      if (unresolved.length) {
+        // Only chart links may change here. Keep the original search's tracks and ordering.
+        const extras = await Promise.allSettled(
+          unresolved.map((entry) =>
+            lookup(
+              entry.credits + " " + entry.title.replace(/\s+Original Mix$/i, ""),
+              "auto",
+              ["beatport.com/track"],
+              8,
+            ),
+          ),
+        );
+        signal.throwIfAborted();
+        const candidates = extras.flatMap((extra) => (extra.status === "fulfilled" ? extra.value : []));
+        const chart = parseResults([...hits, ...candidates], query).chart;
+        const linked = new Set(chart.map((entry) => entry.trackUrl));
+        result = { ...result, chart, tracks: result.tracks.filter((track) => !linked.has(track.url)) };
+      }
+    } catch {
+      signal.throwIfAborted();
+    }
+    return result;
   } finally {
     await client.close();
   }

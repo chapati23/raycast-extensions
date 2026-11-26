@@ -66,6 +66,63 @@ describe("Beatport results", () => {
     ]);
   });
 
+  it("puts exact artist, title and version before related tracks and unverified URL hints", () => {
+    const hits = [
+      { url: "https://beatport.com/track/walls/1", title: "Art Department - Walls (Chaim Remix)" },
+      {
+        url: "https://beatport.com/track/walls-dj-tennis-remix/2",
+        title: "Unknown Artist - Unknown (Unknown Mix) [Unknown Label]",
+      },
+      { url: "https://beatport.com/track/walls/3", title: "Other Artist - Walls (DJ Tennis Remix)" },
+      { url: "https://beatport.com/track/walls/4", title: "Art Department - Walls (DJ Tennis Remix)" },
+    ];
+    const result = parseResults(hits, "Art Department - Walls (DJ Tennis Remix)");
+    expect(result.mixSearch).toBe(true);
+    expect(result.tracks.map((t) => [t.id, t.match])).toEqual([
+      ["4", "exact"],
+      ["2", "url"],
+      ["1", undefined],
+      ["3", undefined],
+    ]);
+    expect(result.tracks[1]).toMatchObject({ title: "walls dj tennis remix", urlTitle: true });
+    expect(result.tracks[1].artist).toBeUndefined();
+    expect(
+      parseResults([...hits, { ...hits[3], url: hits[1].url }], "Art Department Walls (DJ Tennis Remix)").tracks[0]
+        .urlTitle,
+    ).toBeUndefined();
+  });
+
+  it("links a chart mix across credit order and separators but leaves multiple possible releases unresolved", () => {
+    const reversed = { ...track, title: track.title.replace("ANOTR, Abel Balder", "Abel Balder • ANOTR") };
+    expect(parseResults([profile, reversed], "ANOTR").chart[0].trackUrl).toBeDefined();
+    expect(
+      parseResults([profile, reversed, { ...track, url: "https://beatport.com/track/alias/99" }], "ANOTR").chart[0]
+        .trackUrl,
+    ).toBeUndefined();
+  });
+
+  it("recovers the full mix from the page header when the provider truncates its title", () => {
+    const result = parseResults([{ ...track, title:"Mr. G - Faith! (Original Mix) [Phoenix G] | Music & Downloads on ...",text:"Mr. G - Faith! (Original Mix) [Phoenix G] | Music & Downloads on Beatport\n\n# Faith! Original Mix"}],"Mr. G Faith! (Original Mix)");
+    expect(result.tracks[0]).toMatchObject({title:"Faith! (Original Mix)", artist:"Mr. G", match:"exact"});
+  });
+
+  it("uses ISO release dates and distinguishes same-date editions by label", () => {
+    const hits = [
+      ["1993-06-30", "One"],
+      ["2026-11-20", "Two"],
+      ["2026-11-20", "Three"],
+    ].map(([date, label], i) => ({
+      url: "https://beatport.com/track/deep-inside/" + (i + 1),
+      title: "Hardrive - Deep Inside (Original Mix) [" + label + "]",
+      text: "Released:\n\n" + date,
+    }));
+    expect(parseResults(hits, "Deep Inside").tracks.map((t) => t.releaseDetail)).toEqual([
+      "30 Jun 1993",
+      "Two",
+      "Three",
+    ]);
+  });
+
   it("excludes artist subpages, unsafe links and unrelated result types", () => {
     const urls = [
       profile.url + "/tracks",
@@ -97,6 +154,27 @@ describe("Exa search", () => {
     const result = await searchBeatport("Relax My Eyes", new AbortController().signal);
     expect(result.tracks.map((item) => item.id)).toEqual(["2"]);
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the initial results when supplemental lookup fails", async () => {
+    respond(JSON.stringify({ results: [other] }));
+    vi.mocked(Client.prototype.callTool)
+      .mockResolvedValueOnce({ content: [{ type: "text", text: JSON.stringify({ results: [other] }) }] })
+      .mockRejectedValueOnce(new Error("rate limit"));
+    const result = await searchBeatport("missing (Original Mix)", new AbortController().signal);
+    expect(result.tracks[0].id).toBe("3");
+    expect(result.tracks[0].match).toBeUndefined();
+  });
+
+  it("keeps base results and merges only verified chart links from the targeted search", async () => {
+    respond(JSON.stringify({ results: [track, other] }));
+    vi.mocked(Client.prototype.callTool).mockResolvedValueOnce({
+      content: [{ type: "text", text: JSON.stringify({ results: [profile] }) }],
+    });
+    const result = await searchBeatport("ANOTR", new AbortController().signal);
+    expect(result.chart[0].trackUrl).toContain("/2");
+    expect(result.chart[1].trackUrl).toBeUndefined();
+    expect(result.tracks).toEqual([]);
   });
 
   it.each([

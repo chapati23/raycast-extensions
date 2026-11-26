@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Icon, List, type LaunchProps } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { searchBeatport, type Results, type Track } from "./tracks";
+import { searchBeatport, type ChartEntry, type Results, type Track } from "./tracks";
 
 interface SearchResult extends Results {
   query: string;
@@ -11,7 +11,7 @@ export default function Command({ fallbackText }: LaunchProps) {
   return <SearchView initialText={fallbackText ?? ""} />;
 }
 
-function SearchView({ initialText }: { initialText: string }) {
+function SearchView({ initialText, entry }: { initialText: string; entry?: ChartEntry }) {
   const [text, setText] = useState(initialText);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<SearchResult>();
@@ -25,7 +25,7 @@ function SearchView({ initialText }: { initialText: string }) {
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const matches = await searchBeatport(query, controller.signal);
+        const matches = await searchBeatport(query, controller.signal, query === initialText ? entry : undefined);
         if (!controller.signal.aborted) setResult({ query, ...matches });
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -41,9 +41,18 @@ function SearchView({ initialText }: { initialText: string }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [canSearch, query, attempt]);
+  }, [canSearch, query, attempt, initialText, entry]);
 
   const chartUrl = current?.profile && current.profile.url + "#:~:text=Top%20Ten%20Tracks&text=Top%2010%20Tracks";
+  const searchUrl = "https://www.beatport.com/search?q=" + encodeURIComponent(query);
+  const groups = current?.mixSearch
+    ? [
+        { name: "Matching Mixes", tracks: current.tracks.filter((track) => track.match === "exact") },
+        { name: "Possible Matches · Title from URL", tracks: current.tracks.filter((track) => track.match === "url") },
+        { name: "Related Tracks", tracks: current.tracks.filter((track) => !track.match) },
+      ]
+    : [{ name: "Track Matches", tracks: current?.tracks ?? [] }];
+  const missingMix = current?.mixSearch && !current.tracks.some((track) => track.match === "exact");
   const loading = canSearch && !current;
   return (
     <List
@@ -60,7 +69,8 @@ function SearchView({ initialText }: { initialText: string }) {
               <List.Section title="Artist">
                 <List.Item
                   title={current.profile.title}
-                  subtitle="Artist profile"
+                  id={"artist-" + current.profile.id}
+                  subtitle={current.chart.length ? "Artist profile" : "Top Ten in Actions"}
                   icon={Icon.Person}
                   actions={
                     <ActionPanel>
@@ -74,10 +84,11 @@ function SearchView({ initialText }: { initialText: string }) {
                 />
               </List.Section>
               {current.chart.length > 0 && (
-                <List.Section title="Beatport Top Ten" subtitle={current.chart.length + " of 10 available"}>
+                <List.Section title="Beatport Top Ten" subtitle={current.chart.length + " of 10 shown"}>
                   {current.chart.map((entry) => (
                     <List.Item
                       key={entry.rank}
+                      id={"rank-" + entry.rank}
                       title={entry.title}
                       subtitle={entry.credits}
                       accessories={[{ text: (entry.trackUrl ? "" : "Find mix · ") + "#" + entry.rank }]}
@@ -90,7 +101,7 @@ function SearchView({ initialText }: { initialText: string }) {
                             <Action.Push
                               title="Find This Mix"
                               icon={Icon.MagnifyingGlass}
-                              target={<SearchView initialText={entry.credits + " " + entry.title} />}
+                              target={<SearchView entry={entry} initialText={entry.credits + " " + entry.title} />}
                             />
                           )}
                           <Action.OpenInBrowser title="Open Chart on Beatport" url={chartUrl} />
@@ -113,12 +124,30 @@ function SearchView({ initialText }: { initialText: string }) {
               )}
             </>
           )}
-          {current.tracks.length > 0 && (
-            <List.Section title="Track Matches">
-              {current.tracks.map((track) => (
-                <TrackRow key={track.id} track={track} />
-              ))}
+          {missingMix && (
+            <List.Section title="No Verified Mix Match">
+              <List.Item
+                id="search-beatport"
+                icon={Icon.MagnifyingGlass}
+                title="Search on Beatport"
+                subtitle={query}
+                actions={
+                  <ActionPanel>
+                    <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
+                  </ActionPanel>
+                }
+              />
             </List.Section>
+          )}
+          {groups.map(
+            (group) =>
+              group.tracks.length > 0 && (
+                <List.Section key={group.name} title={group.name}>
+                  {group.tracks.map((track) => (
+                    <TrackRow key={track.id} track={track} searchUrl={searchUrl} />
+                  ))}
+                </List.Section>
+              ),
           )}
         </>
       ) : (
@@ -142,9 +171,10 @@ function SearchView({ initialText }: { initialText: string }) {
                 : "Enter at least two characters to search with Exa.")
           }
           actions={
-            current?.error ? (
+            current && canSearch ? (
               <ActionPanel>
-                <Action title="Retry Search" onAction={() => setAttempt(attempt + 1)} />
+                <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
+                {current.error && <Action title="Retry Search" onAction={() => setAttempt((value) => value + 1)} />}
               </ActionPanel>
             ) : undefined
           }
@@ -154,17 +184,19 @@ function SearchView({ initialText }: { initialText: string }) {
   );
 }
 
-function TrackRow({ track }: { track: Track }) {
+function TrackRow({ track, searchUrl }: { track: Track; searchUrl: string }) {
   return (
     <List.Item
+      id={"track-" + track.id}
       title={track.title}
-      subtitle={track.artist}
+      subtitle={track.urlTitle ? "Credits unverified" : track.artist}
       accessories={track.releaseDetail ? [{ text: track.releaseDetail }] : undefined}
       icon={Icon.Music}
       actions={
         <ActionPanel>
           <Action.OpenInBrowser title="Open on Beatport" url={track.url} />
           <Action.CopyToClipboard title="Copy Track URL" content={track.url} />
+          <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
         </ActionPanel>
       }
     />

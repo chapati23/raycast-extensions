@@ -1,10 +1,12 @@
 # Beatport Search for Raycast
 
-Open **Search Beatport**, then type an artist or track name. An exact artist-name match puts the Beatport artist profile first. The **Beatport Top Ten** section preserves the positions, titles and credits visible in Exa’s copy of the profile. Press Return to open a chart entry when the index also contains a unique track page with the same mix and credits. Otherwise choose **Find This Mix** to look up a chart entry, then press Escape to return to the artist. The heading reports how many of the ten positions are available. **View Full Top Ten on Beatport** opens the chart when some ranks are missing. When none are available, select the artist and choose **Open Top Ten on Beatport** in Actions. A magnifying glass and **Find mix** identify rows that run another search.
+Open **Search Beatport** and type an artist or track name. An exact artist-name match puts the profile first. **Beatport Top Ten** shows only the numbered positions visible on the indexed artist page. Return opens a track when its title, mix and credits identify a single Beatport track ID among the results. A magnifier and **Find mix** mark entries that need another search. Escape returns to the artist. If the index has no ranks, select the artist and open **Top Ten** in Actions.
 
-**Track Matches** shows up to ten track links in web search order. Press Return to open a track. Choose **Copy Track URL** to copy its link. A track-title search goes straight to these matches. Rows with the same title and artist show a release date when it distinguishes them, or their Beatport track ID.
+For a specific version, include the artist, title and mix, for example “Art Department Walls (DJ Tennis Remix).” **Matching Mixes** contains matching indexed credits and titles. A **Possible Match** gets its title from the URL when the page metadata is missing. **Related Tracks** can include other versions or artists. **Search on Beatport** carries the query to the store when the mix is missing or the provider fails.
 
-The prototype sends search text to [Exa’s free, rate-limited web search service](https://exa.ai/mcp) after you pause typing. It requires no account or API key. Results depend on Exa’s index and may omit recent releases.
+The command shows up to ten track results. Rows with identical titles and credits show a distinguishing release date or label, or the Beatport track ID. Use **Copy Track URL** in Actions to copy the link.
+
+The extension sends query text to [Exa’s free web search service](https://exa.ai/mcp) after you pause typing. It needs no account or key. It can make a focused search for a missing mix or artist profile, and look up the first three unresolved chart entries. The free service has rate limits. Chart coverage and release availability depend on the index.
 
 ## Run locally on macOS
 
@@ -15,6 +17,6 @@ npm ci
 npm run dev
 ```
 
-For validation, run `npm run typecheck`, `npm test`, and `npm run lint`. Run `npm run build -- --environment dist --output dist` to build a distribution bundle locally.
+Run `npm run typecheck`, `npm test`, and `npm run lint` for validation. Run `npm run build -- --environment dist --output dist` for a distribution bundle.
 
-This independent prototype uses public track links. Beatport has not endorsed it.
+This independent prototype uses public Beatport links.
