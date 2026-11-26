@@ -55,7 +55,7 @@ describe("Beatport results", () => {
       url: "https://www.beatport.com/track/strobe/" + (index + 1),
       text: "# Strobe Club Edit\n\nReleased:\n\n" + date,
     }));
-    const result = parseResults([...hits, other], "Strobe");
+    const result = parseResults([...hits, { ...other, url: "https://www.beatport.com/track/radio/99" }], "Strobe");
     expect(result.tracks.map((track) => track.releaseDetail)).toEqual([
       "24 Dec 2014",
       "ID 2",
