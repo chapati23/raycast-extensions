@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { parseResults } from "./tracks";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseResults, searchBeatport } from "./tracks";
 
 const profile = {
   url: "https://www.beatport.com/artist/anotr/498574",
@@ -79,5 +80,32 @@ describe("Beatport results", () => {
         "ANOTR",
       ),
     ).toEqual({ profile: undefined, chart: [], tracks: [] });
+  });
+});
+
+describe("Exa search", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function respond(text: string, isError = false) {
+    vi.spyOn(Client.prototype, "connect").mockResolvedValue(undefined);
+    vi.spyOn(Client.prototype, "callTool").mockResolvedValue({ content: [{ type: "text", text }], isError });
+    return vi.spyOn(Client.prototype, "close").mockResolvedValue(undefined);
+  }
+
+  it("keeps track links when the provider omits page text", async () => {
+    const close = respond(JSON.stringify({ results: [{ ...track, text: null }] }));
+    const result = await searchBeatport("Relax My Eyes", new AbortController().signal);
+    expect(result.tracks.map((item) => item.id)).toEqual(["2"]);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["Rate limit exceeded", true, /rate limit/i],
+    ["not JSON", false, SyntaxError],
+    ["{}", false, /unexpected response/i],
+  ] as const)("rejects an unusable response (%s) and closes the client", async (text, isError, expected) => {
+    const close = respond(text, isError);
+    await expect(searchBeatport("Relax My Eyes", new AbortController().signal)).rejects.toThrow(expected);
+    expect(close).toHaveBeenCalledOnce();
   });
 });

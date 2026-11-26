@@ -32,7 +32,7 @@ function SearchView({ initialText }: { initialText: string }) {
           const message =
             error instanceof Error && /429|rate.limit/i.test(error.message)
               ? "Exa reached its free search limit. Try again later."
-              : "Check your connection and try again.";
+              : "Couldn’t complete the search with Exa. Try again.";
           setResult({ query, tracks: [], chart: [], error: message });
         }
       }
@@ -43,7 +43,7 @@ function SearchView({ initialText }: { initialText: string }) {
     };
   }, [canSearch, query, attempt]);
 
-  const chartUrl = current?.profile && current.profile.url + "#:~:text=Top%20Ten%20Tracks";
+  const chartUrl = current?.profile && current.profile.url + "#:~:text=Top%20Ten%20Tracks&text=Top%2010%20Tracks";
   const loading = canSearch && !current;
   return (
     <List

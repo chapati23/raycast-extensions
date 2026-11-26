@@ -28,7 +28,7 @@ export interface Results {
 interface Hit {
   url: string;
   title: string;
-  text?: string;
+  text?: string | null;
 }
 
 function nameKey(value: string) {
@@ -67,7 +67,7 @@ const releaseFormat = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-function releaseDate(text?: string): string | undefined {
+function releaseDate(text?: string | null): string | undefined {
   const match = text?.match(/^Released:[ \t]*\r?\n\s*(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})[ \t]*$/m);
   if (!match) return;
   const month = Number(match[1]);
@@ -159,7 +159,7 @@ function isHit(value: unknown): value is Hit {
     typeof value.url === "string" &&
     "title" in value &&
     typeof value.title === "string" &&
-    (!("text" in value) || typeof value.text === "string")
+    (!("text" in value) || value.text == null || typeof value.text === "string")
   );
 }
 
