@@ -119,13 +119,23 @@ function sameMix(track: Track, entry: ChartEntry) {
   );
 }
 
-export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry): Results {
+function repeatedChartMix(entry: ChartEntry, chart: ChartEntry[]) {
+  return chart.some(
+    (other) =>
+      other.rank !== entry.rank &&
+      words(other.title) === words(entry.title) &&
+      creditsKey(other.credits) === creditsKey(entry.credits),
+  );
+}
+
+export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, chartHits: Hit[] = []): Results {
+  const visibleIds = new Set<string>();
   const tracks = new Map<string, Track>();
   const dates = new Map<string, string | undefined>();
   const labels = new Map<string, string>();
   let profile: Page | undefined;
   let chart: ChartEntry[] = [];
-  for (const hit of hits) {
+  for (const [index, hit] of [...hits, ...chartHits].entries()) {
     if (!URL.canParse(hit.url)) continue;
     const page = new URL(hit.url);
     if (!["https://beatport.com", "https://www.beatport.com"].includes(page.origin) || page.username || page.password)
@@ -136,6 +146,7 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry): R
     const url = `https://www.beatport.com/${kind}/${slug}/${id}`;
 
     if (kind === "artist") {
+      if (index >= hits.length) continue;
       const title =
         hit.text?.match(/^# ([^\r\n]+)$/m)?.[1]?.trim() ??
         hit.title.replace(/\s+Music (?:& Downloads on Beatport|downloads?.*)$/i, "").trim();
@@ -146,6 +157,7 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry): R
       continue;
     }
 
+    if (index < hits.length) visibleIds.add(id);
     // Exa may truncate its title even when the indexed page still has the full header.
     const header = hit.text?.split(/\r?\n/, 1)[0];
     const sourceTitle = header?.includes(" - ") && /\|[^|]*Beatport\s*$/i.test(header) ? header : hit.title;
@@ -174,6 +186,7 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry): R
   const matches = [...tracks.values()].filter((track) => !profile || creditedTo(track.artist ?? "", profile.title));
   const linked = new Set<string>();
   for (const entry of chart) {
+    if (repeatedChartMix(entry, chart)) continue;
     const candidates = matches.filter((track) => sameMix(track, entry));
     if (candidates.length === 1) {
       entry.trackUrl = candidates[0].url;
@@ -198,7 +211,7 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry): R
     const weight = (track: Track) => (track.match === "exact" ? 2 : track.match === "url" ? 1 : 0);
     matches.sort((a, b) => weight(b) - weight(a));
   }
-  const visible = matches.filter((track) => !linked.has(track.id)).slice(0, 10);
+  const visible = matches.filter((track) => visibleIds.has(track.id) && !linked.has(track.id)).slice(0, 10);
   labelDuplicates(visible, dates, labels);
   return { profile, chart, tracks: visible, ...(mixSearch && { mixSearch: true }) };
 }
@@ -224,7 +237,13 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
     const response = await client.callTool(
       {
         name: "web_search_advanced_exa",
-        arguments: { query: text, type, includeDomains: domains, numResults: count, textMaxCharacters: type === "auto" ? 20000 : 12000 },
+        arguments: {
+          query: text,
+          type,
+          includeDomains: domains,
+          numResults: count,
+          textMaxCharacters: type === "auto" ? 20000 : 12000,
+        },
       },
       undefined,
       options,
@@ -273,7 +292,9 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
         hits.push(...(await lookup('"' + query + '" Beatport artist', "auto", ["beatport.com/artist"], 12)));
         result = parseResults(hits, query, wanted);
       }
-      const unresolved = result.chart.filter((entry) => !entry.trackUrl).slice(0, 3);
+      const unresolved = result.chart
+        .filter((entry) => !entry.trackUrl && !repeatedChartMix(entry, result.chart))
+        .slice(0, 3);
       if (unresolved.length) {
         // Only chart links may change here. Keep the original search's tracks and ordering.
         const extras = await Promise.allSettled(
@@ -288,9 +309,7 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
         );
         signal.throwIfAborted();
         const candidates = extras.flatMap((extra) => (extra.status === "fulfilled" ? extra.value : []));
-        const chart = parseResults([...hits, ...candidates], query).chart;
-        const linked = new Set(chart.map((entry) => entry.trackUrl));
-        result = { ...result, chart, tracks: result.tracks.filter((track) => !linked.has(track.url)) };
+        result = parseResults(hits, query, wanted, candidates);
       }
     } catch {
       signal.throwIfAborted();

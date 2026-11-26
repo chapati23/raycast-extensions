@@ -101,9 +101,32 @@ describe("Beatport results", () => {
     ).toBeUndefined();
   });
 
+  it("keeps ambiguous releases accessible and never maps two chart ranks to the same song page", () => {
+    const duplicate = { ...track, url: "https://beatport.com/track/another-release/99" };
+    const ambiguous = parseResults([profile, track], "ANOTR", undefined, [duplicate]);
+    expect(ambiguous.chart[0].trackUrl).toBeUndefined();
+    expect(ambiguous.tracks.map((t) => t.id)).toEqual(["2"]);
+    const repeated = {
+      ...profile,
+      text: profile.text.replace(
+        "It's So Nice Extended Mix\n\nANOTR, 3DDY",
+        "Relax My Eyes Original Mix\n\nANOTR, Abel Balder",
+      ),
+    };
+    expect(parseResults([repeated, track], "ANOTR").chart.map((c) => c.trackUrl)).toEqual([undefined, undefined]);
+  });
   it("recovers the full mix from the page header when the provider truncates its title", () => {
-    const result = parseResults([{ ...track, title:"Mr. G - Faith! (Original Mix) [Phoenix G] | Music & Downloads on ...",text:"Mr. G - Faith! (Original Mix) [Phoenix G] | Music & Downloads on Beatport\n\n# Faith! Original Mix"}],"Mr. G Faith! (Original Mix)");
-    expect(result.tracks[0]).toMatchObject({title:"Faith! (Original Mix)", artist:"Mr. G", match:"exact"});
+    const result = parseResults(
+      [
+        {
+          ...track,
+          title: "Mr. G - Faith! (Original Mix) [Phoenix G] | Music & Downloads on ...",
+          text: "Mr. G - Faith! (Original Mix) [Phoenix G] | Music & Downloads on Beatport\n\n# Faith! Original Mix",
+        },
+      ],
+      "Mr. G Faith! (Original Mix)",
+    );
+    expect(result.tracks[0]).toMatchObject({ title: "Faith! (Original Mix)", artist: "Mr. G", match: "exact" });
   });
 
   it("uses ISO release dates and distinguishes same-date editions by label", () => {
@@ -167,14 +190,35 @@ describe("Exa search", () => {
   });
 
   it("keeps base results and merges only verified chart links from the targeted search", async () => {
-    respond(JSON.stringify({ results: [track, other] }));
+    const baseTrack = {
+      ...track,
+      title: "ANOTR - Another Track (Original Mix)",
+      url: "https://beatport.com/track/another/88",
+    };
+    const extraTrack = { ...baseTrack, url: "https://beatport.com/track/extra/89" };
+    respond(JSON.stringify({ results: [track, other, extraTrack] }));
     vi.mocked(Client.prototype.callTool).mockResolvedValueOnce({
-      content: [{ type: "text", text: JSON.stringify({ results: [profile] }) }],
+      content: [{ type: "text", text: JSON.stringify({ results: [profile, baseTrack] }) }],
     });
     const result = await searchBeatport("ANOTR", new AbortController().signal);
     expect(result.chart[0].trackUrl).toContain("/2");
     expect(result.chart[1].trackUrl).toBeUndefined();
-    expect(result.tracks).toEqual([]);
+    expect(result.tracks.map((track) => track.id)).toEqual(["88"]);
+  });
+
+  it("returns an empty result for an identified zero-hit provider response", async () => {
+    respond(JSON.stringify({ requestId: "r", searchTime: 20 }));
+    expect((await searchBeatport("missing", new AbortController().signal)).tracks).toEqual([]);
+  });
+
+  it("finds a requested chart mix using both credits and title on the second search", async () => {
+    const wanted = { rank: 4, title: "Relax My Eyes Original Mix", credits: "Abel Balder • ANOTR" };
+    respond(JSON.stringify({ results: [track, other] }));
+    vi.mocked(Client.prototype.callTool).mockResolvedValueOnce({
+      content: [{ type: "text", text: JSON.stringify({ results: [other] }) }],
+    });
+    const result = await searchBeatport(wanted.credits + " " + wanted.title, new AbortController().signal, wanted);
+    expect(result.tracks.map((t) => t.match)).toEqual(["exact", undefined]);
   });
 
   it.each([

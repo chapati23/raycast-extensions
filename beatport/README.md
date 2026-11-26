@@ -19,4 +19,4 @@ npm run dev
 
 Run `npm run typecheck`, `npm test`, and `npm run lint` for validation. Run `npm run build -- --environment dist --output dist` for a distribution bundle.
 
-This independent prototype uses public Beatport links.
+This independent prototype uses public track links. Beatport has not endorsed it.
