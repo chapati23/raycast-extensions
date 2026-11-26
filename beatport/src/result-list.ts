@@ -104,3 +104,19 @@ export function updateList(
   }
   return { ...next, selectedId: id, sections: display, settledSections: sections };
 }
+
+export function selectResult(previous: ResultList | undefined, query: string, id: string): ResultList | undefined {
+  if (
+    !previous ||
+    previous.query !== query ||
+    previous.selectedId === id ||
+    !previous.sections.some((section) => section.rows.some((row) => row.id === id))
+  )
+    return previous;
+  return {
+    ...previous,
+    selectedId: id,
+    sections: previous.settledSections ?? previous.sections,
+    settledSections: undefined,
+  };
+}

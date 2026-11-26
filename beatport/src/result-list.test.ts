@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultSections, updateList } from "./result-list";
+import { selectResult, resultSections, updateList } from "./result-list";
 import type { Results } from "./tracks";
 
 const profile = { id: "1", title: "Artist", url: "https://www.beatport.com/artist/artist/1" };
@@ -9,6 +9,10 @@ const initial: Results = { profile, chart: [entry], tracks: [track] };
 const settled: Results = { profile, chart: [{ ...entry, trackUrl: track.url }], tracks: [] };
 
 describe("progressive Beatport search", () => {
+  it("withholds provisional chart links until supplemental lookups settle", () => {
+    expect(resultSections(settled, true)[1].rows[0]).toMatchObject({ kind: "rank", entry: { trackUrl: undefined } });
+    expect(resultSections(settled, false)[1].rows[0]).toMatchObject({ kind: "rank", entry: { trackUrl: track.url } });
+  });
   it("keeps the selected lookup action when its chart rank becomes a direct link", () => {
     const previous = { ...updateList(undefined, "q", initial, true), selectedId: "rank-1-4" };
     const list = updateList(previous, "q", settled, false);
@@ -33,6 +37,9 @@ describe("progressive Beatport search", () => {
     const list = updateList(previous, "song", { ...related, tracks: [{ ...track, match: "exact" }] }, false);
     expect(list.selectedId).toBe("catalog");
     expect(list.sections[0].rows[0].id).toBe("catalog");
-    expect(list.settledSections?.[0].title).toBe("Matching Mixes");
+    expect(selectResult(list, "song", "catalog")).toBe(list);
+    const moved = selectResult(list, "song", "track-2");
+    expect(moved?.sections.map((s) => s.title)).toEqual(["Matching Mixes"]);
+    expect(moved?.selectedId).toBe("track-2");
   });
 });

@@ -209,6 +209,19 @@ describe("Exa search", () => {
     expect(final.tracks[0].match).toBe("exact");
   });
 
+  it("shows usable tracks while looking for their artist profile", async () => {
+    const simple = { ...track, title: "ANOTR - Single (Original Mix)" };
+    respond(JSON.stringify({ results: [] }));
+    vi.mocked(Client.prototype.callTool).mockResolvedValueOnce({
+      content: [{ type: "text", text: JSON.stringify({ results: [simple] }) }],
+    });
+    const preview = vi.fn();
+    const result = await searchBeatport("ANOTR", new AbortController().signal, undefined, preview);
+    expect(preview).toHaveBeenCalledOnce();
+    expect(preview.mock.calls[0][0].tracks[0].id).toBe("2");
+    expect(result.tracks[0].id).toBe("2");
+  });
+
   it("keeps base results and merges only verified chart links from the targeted search", async () => {
     const baseTrack = {
       ...track,
@@ -220,7 +233,10 @@ describe("Exa search", () => {
     vi.mocked(Client.prototype.callTool).mockResolvedValueOnce({
       content: [{ type: "text", text: JSON.stringify({ results: [profile, baseTrack] }) }],
     });
-    const result = await searchBeatport("ANOTR", new AbortController().signal);
+    const preview = vi.fn();
+    const result = await searchBeatport("ANOTR", new AbortController().signal, undefined, preview);
+    expect(preview).toHaveBeenCalledOnce();
+    expect(preview.mock.calls[0][0].chart[0].trackUrl).toBeUndefined();
     expect(result.chart[0].trackUrl).toContain("/2");
     expect(result.chart[1].trackUrl).toBeUndefined();
     expect(result.tracks.map((track) => track.id)).toEqual(["88"]);

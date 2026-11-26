@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Icon, List, type LaunchProps } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { searchBeatport, type ChartEntry, type Results } from "./tracks";
-import { updateList, type ResultList, type ResultRow } from "./result-list";
+import { selectResult, updateList, type ResultList, type ResultRow } from "./result-list";
 
 export default function Command({ fallbackText }: LaunchProps) {
   return <SearchView initialText={fallbackText ?? ""} />;
@@ -50,22 +50,7 @@ function SearchView({ initialText, entry }: { initialText: string; entry?: Chart
 
   const loading = canSearch && !current;
   function select(id: string | null) {
-    if (!id) return;
-    setList((previous) => {
-      if (
-        !previous ||
-        previous.query !== query ||
-        previous.selectedId === id ||
-        !previous.sections.some((section) => section.rows.some((row) => row.id === id))
-      )
-        return previous;
-      return {
-        ...previous,
-        selectedId: id,
-        sections: previous.settledSections ?? previous.sections,
-        settledSections: undefined,
-      };
-    });
+    if (id) setList((previous) => selectResult(previous, query, id));
   }
 
   return (
