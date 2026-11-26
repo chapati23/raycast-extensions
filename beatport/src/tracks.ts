@@ -228,7 +228,12 @@ function isHit(value: unknown): value is Hit {
   );
 }
 
-export async function searchBeatport(query: string, signal: AbortSignal, wanted?: ChartEntry): Promise<Results> {
+export async function searchBeatport(
+  query: string,
+  signal: AbortSignal,
+  wanted?: ChartEntry,
+  onInitial?: (initial: Results) => void,
+): Promise<Results> {
   const client = new Client({ name: "beatport-search-raycast", version: "0.2.0" });
   const transport = new StreamableHTTPClientTransport(new URL("https://mcp.exa.ai/mcp?tools=web_search_advanced_exa"));
   const options = { signal, timeout: 15000 };
@@ -263,6 +268,12 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
     await client.connect(transport, options);
     const hits = await lookup(query, "lite", ["beatport.com/artist", "beatport.com/track"], 18);
     let result = parseResults(hits, query, wanted);
+    let previewSent = false;
+    function publishPreview() {
+      if (previewSent || signal.aborted || !(result.profile || result.tracks.length)) return;
+      previewSent = true;
+      onInitial?.(result);
+    }
     // Supplemental lookups can fail independently. Keep the first page usable.
     try {
       if (result.mixSearch && !result.tracks.some((track) => track.match === "exact")) {
@@ -282,6 +293,7 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
         const slug = words(title.replace(/\s+original mix$/i, "")).replace(/ /g, "-");
         const domains =
           slug && /\(original mix\)\s*$/i.test(query) ? ["beatport.com/track/" + slug] : ["beatport.com/track"];
+        publishPreview();
         const extra = await lookup(focused, "auto", domains, 8);
         return parseResults([...extra, ...hits], query, wanted);
       }
@@ -289,6 +301,7 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
         !result.chart.length &&
         (result.profile || result.tracks.some((track) => creditedTo(track.artist ?? "", query)))
       ) {
+        publishPreview();
         hits.push(...(await lookup('"' + query + '" Beatport artist', "auto", ["beatport.com/artist"], 12)));
         result = parseResults(hits, query, wanted);
       }
@@ -296,6 +309,7 @@ export async function searchBeatport(query: string, signal: AbortSignal, wanted?
         .filter((entry) => !entry.trackUrl && !repeatedChartMix(entry, result.chart))
         .slice(0, 3);
       if (unresolved.length) {
+        publishPreview();
         // Only chart links may change here. Keep the original search's tracks and ordering.
         const extras = await Promise.allSettled(
           unresolved.map((entry) =>

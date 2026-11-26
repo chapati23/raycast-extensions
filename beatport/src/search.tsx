@@ -1,11 +1,7 @@
 import { Action, ActionPanel, Icon, List, type LaunchProps } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { searchBeatport, type ChartEntry, type Results, type Track } from "./tracks";
-
-interface SearchResult extends Results {
-  query: string;
-  error?: string;
-}
+import { searchBeatport, type ChartEntry, type Results } from "./tracks";
+import { updateList, type ResultList, type ResultRow } from "./result-list";
 
 export default function Command({ fallbackText }: LaunchProps) {
   return <SearchView initialText={fallbackText ?? ""} />;
@@ -14,27 +10,36 @@ export default function Command({ fallbackText }: LaunchProps) {
 function SearchView({ initialText, entry }: { initialText: string; entry?: ChartEntry }) {
   const [text, setText] = useState(initialText);
   const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<SearchResult>();
+  const [list, setList] = useState<ResultList>();
   const query = text.trim();
   const canSearch = query.length >= 2;
-  const current = canSearch && result?.query === query ? result : undefined;
+  const current = canSearch && list?.query === query ? list : undefined;
+  const searchUrl = "https://www.beatport.com/search?q=" + encodeURIComponent(query);
 
   useEffect(() => {
-    setResult(undefined);
+    setList(undefined);
     if (!canSearch) return;
     const controller = new AbortController();
+    const publish = (result: Results, pending: boolean) => {
+      if (!controller.signal.aborted) setList((previous) => updateList(previous, query, result, pending));
+    };
     const timer = setTimeout(async () => {
       try {
-        const matches = await searchBeatport(query, controller.signal, query === initialText ? entry : undefined);
-        if (!controller.signal.aborted) setResult({ query, ...matches });
+        const matches = await searchBeatport(
+          query,
+          controller.signal,
+          query === initialText ? entry : undefined,
+          (initial) => publish(initial, true),
+        );
+        publish(matches, false);
       } catch (error) {
-        if (!controller.signal.aborted) {
-          const message =
-            error instanceof Error && /429|rate.limit/i.test(error.message)
-              ? "Exa reached its free search limit. Try again later."
-              : "Couldn’t complete the search with Exa. Try again.";
-          setResult({ query, tracks: [], chart: [], error: message });
-        }
+        if (!controller.signal.aborted)
+          setList({
+            query,
+            sections: [],
+            pending: false,
+            error: error instanceof Error && /429|rate.limit/i.test(error.message) ? "limit" : "failed",
+          });
       }
     }, 450);
     return () => {
@@ -43,138 +48,70 @@ function SearchView({ initialText, entry }: { initialText: string; entry?: Chart
     };
   }, [canSearch, query, attempt, initialText, entry]);
 
-  const chartUrl = current?.profile && current.profile.url + "#:~:text=Top%20Ten%20Tracks&text=Top%2010%20Tracks";
-  const searchUrl = "https://www.beatport.com/search?q=" + encodeURIComponent(query);
-  const groups = current?.mixSearch
-    ? [
-        { name: "Matching Mixes", tracks: current.tracks.filter((track) => track.match === "exact") },
-        { name: "Possible Matches · Title from URL", tracks: current.tracks.filter((track) => track.match === "url") },
-        { name: "Related Tracks", tracks: current.tracks.filter((track) => !track.match) },
-      ]
-    : [{ name: "Track Matches", tracks: current?.tracks ?? [] }];
-  const missingMix = current?.mixSearch && !current.tracks.some((track) => track.match === "exact");
   const loading = canSearch && !current;
+  function select(id: string | null) {
+    if (!id) return;
+    setList((previous) => {
+      if (
+        !previous ||
+        previous.query !== query ||
+        previous.selectedId === id ||
+        !previous.sections.some((section) => section.rows.some((row) => row.id === id))
+      )
+        return previous;
+      return {
+        ...previous,
+        selectedId: id,
+        sections: previous.settledSections ?? previous.sections,
+        settledSections: undefined,
+      };
+    });
+  }
+
   return (
     <List
       filtering={false}
       searchText={text}
       onSearchTextChange={setText}
       searchBarPlaceholder="Artist or track name"
-      isLoading={loading}
+      isLoading={loading || current?.pending}
+      selectedItemId={current?.selectedId}
+      onSelectionChange={select}
     >
-      {current && (current.profile || current.tracks.length) ? (
-        <>
-          {current.profile && chartUrl && (
-            <>
-              <List.Section title="Artist">
-                <List.Item
-                  title={current.profile.title}
-                  id={"artist-" + current.profile.id}
-                  subtitle={current.chart.length ? "Artist profile" : "Top Ten in Actions"}
-                  icon={Icon.Person}
-                  actions={
-                    <ActionPanel>
-                      <Action.OpenInBrowser title="Open Artist on Beatport" url={current.profile.url} />
-                      {current.chart.length === 0 && (
-                        <Action.OpenInBrowser title="Open Top Ten on Beatport" url={chartUrl} />
-                      )}
-                      <Action.CopyToClipboard title="Copy Artist URL" content={current.profile.url} />
-                    </ActionPanel>
-                  }
-                />
-              </List.Section>
-              {current.chart.length > 0 && (
-                <List.Section title="Beatport Top Ten" subtitle={current.chart.length + " of 10 shown"}>
-                  {current.chart.map((entry) => (
-                    <List.Item
-                      key={entry.rank}
-                      id={"rank-" + entry.rank}
-                      title={entry.title}
-                      subtitle={entry.credits}
-                      accessories={[{ text: (entry.trackUrl ? "" : "Find mix · ") + "#" + entry.rank }]}
-                      icon={entry.trackUrl ? Icon.Music : Icon.MagnifyingGlass}
-                      actions={
-                        <ActionPanel>
-                          {entry.trackUrl ? (
-                            <Action.OpenInBrowser title="Open on Beatport" url={entry.trackUrl} />
-                          ) : (
-                            <Action.Push
-                              title="Find This Mix"
-                              icon={Icon.MagnifyingGlass}
-                              target={<SearchView entry={entry} initialText={entry.credits + " " + entry.title} />}
-                            />
-                          )}
-                          <Action.OpenInBrowser title="Open Chart on Beatport" url={chartUrl} />
-                        </ActionPanel>
-                      }
-                    />
-                  ))}
-                  {current.chart.length < 10 && (
-                    <List.Item
-                      title="View Full Top Ten on Beatport"
-                      icon={Icon.ArrowNe}
-                      actions={
-                        <ActionPanel>
-                          <Action.OpenInBrowser url={chartUrl} />
-                        </ActionPanel>
-                      }
-                    />
-                  )}
-                </List.Section>
-              )}
-            </>
-          )}
-          {missingMix && (
-            <List.Section title="No Verified Mix Match">
-              <List.Item
-                id="search-beatport"
-                icon={Icon.MagnifyingGlass}
-                title="Search on Beatport"
-                subtitle={query}
-                actions={
-                  <ActionPanel>
-                    <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
-                  </ActionPanel>
-                }
-              />
-            </List.Section>
-          )}
-          {groups.map(
-            (group) =>
-              group.tracks.length > 0 && (
-                <List.Section key={group.name} title={group.name}>
-                  {group.tracks.map((track) => (
-                    <TrackRow key={track.id} track={track} searchUrl={searchUrl} />
-                  ))}
-                </List.Section>
-              ),
-          )}
-        </>
+      {current?.sections.length ? (
+        current.sections.map((section) => (
+          <List.Section key={section.title} title={section.title} subtitle={section.subtitle}>
+            {section.rows.map((row) => (
+              <BeatportRow key={row.id} row={row} searchUrl={searchUrl} />
+            ))}
+          </List.Section>
+        ))
       ) : (
         <List.EmptyView
           icon={current?.error ? Icon.ExclamationMark : Icon.MagnifyingGlass}
           title={
-            current?.error
-              ? "Search failed"
-              : loading
-                ? "Searching Beatport…"
-                : canSearch
-                  ? "No results found"
-                  : "Search Beatport"
+            current?.error === "limit"
+              ? "Search limit reached"
+              : current?.error
+                ? "Search failed"
+                : loading
+                  ? "Searching Beatport…"
+                  : canSearch
+                    ? "No results found"
+                    : "Search Beatport"
           }
           description={
-            current?.error ??
-            (loading
-              ? undefined
+            current?.error || loading
+              ? "Press Return to search Beatport in your browser."
               : canSearch
                 ? "Try a track title with the artist’s name."
-                : "Enter at least two characters to search with Exa.")
+                : "Enter at least two characters to search with Exa."
           }
           actions={
-            current && canSearch ? (
+            canSearch ? (
               <ActionPanel>
                 <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
-                {current.error && <Action title="Retry Search" onAction={() => setAttempt((value) => value + 1)} />}
+                {current?.error && <Action title="Retry Search" onAction={() => setAttempt((value) => value + 1)} />}
               </ActionPanel>
             ) : undefined
           }
@@ -184,21 +121,95 @@ function SearchView({ initialText, entry }: { initialText: string; entry?: Chart
   );
 }
 
-function TrackRow({ track, searchUrl }: { track: Track; searchUrl: string }) {
-  return (
-    <List.Item
-      id={"track-" + track.id}
-      title={track.title}
-      subtitle={track.urlTitle ? "Credits unverified" : track.artist}
-      accessories={track.releaseDetail ? [{ text: track.releaseDetail }] : undefined}
-      icon={Icon.Music}
-      actions={
-        <ActionPanel>
-          <Action.OpenInBrowser title="Open on Beatport" url={track.url} />
-          <Action.CopyToClipboard title="Copy Track URL" content={track.url} />
-          <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
-        </ActionPanel>
-      }
-    />
-  );
+function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) {
+  switch (row.kind) {
+    case "artist":
+      return (
+        <List.Item
+          id={row.id}
+          title={row.profile.title}
+          subtitle="Artist profile"
+          icon={Icon.Person}
+          actions={
+            <ActionPanel>
+              <Action.OpenInBrowser title="Open Artist on Beatport" url={row.profile.url} />
+              <Action.OpenInBrowser title="Open Top Ten on Beatport" url={row.chartUrl} />
+              <Action.CopyToClipboard title="Copy Artist URL" content={row.profile.url} />
+            </ActionPanel>
+          }
+        />
+      );
+    case "chart":
+      return (
+        <List.Item
+          id={row.id}
+          title="View Full Top Ten on Beatport"
+          icon={Icon.ArrowNe}
+          actions={
+            <ActionPanel>
+              <Action.OpenInBrowser url={row.url} />
+            </ActionPanel>
+          }
+        />
+      );
+    case "rank": {
+      const { entry } = row;
+      return (
+        <List.Item
+          id={row.id}
+          title={entry.title}
+          subtitle={entry.credits}
+          accessories={[{ text: (entry.trackUrl ? "" : "Find mix · ") + "#" + entry.rank }]}
+          icon={entry.trackUrl ? Icon.Music : Icon.MagnifyingGlass}
+          actions={
+            <ActionPanel>
+              {entry.trackUrl ? (
+                <Action.OpenInBrowser title="Open on Beatport" url={entry.trackUrl} />
+              ) : (
+                <Action.Push
+                  title="Find This Mix"
+                  icon={Icon.MagnifyingGlass}
+                  target={<SearchView entry={entry} initialText={entry.credits + " " + entry.title} />}
+                />
+              )}
+              <Action.OpenInBrowser title="Open Chart on Beatport" url={row.chartUrl} />
+            </ActionPanel>
+          }
+        />
+      );
+    }
+    case "catalog":
+      return (
+        <List.Item
+          id={row.id}
+          icon={Icon.MagnifyingGlass}
+          title="Search on Beatport"
+          subtitle="Search the full catalog"
+          actions={
+            <ActionPanel>
+              <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
+            </ActionPanel>
+          }
+        />
+      );
+    case "track": {
+      const { track } = row;
+      return (
+        <List.Item
+          id={row.id}
+          title={track.title}
+          subtitle={track.urlTitle ? "Name from link · Artist unconfirmed" : track.artist}
+          accessories={track.releaseDetail ? [{ text: track.releaseDetail }] : undefined}
+          icon={Icon.Music}
+          actions={
+            <ActionPanel>
+              <Action.OpenInBrowser title="Open on Beatport" url={track.url} />
+              <Action.CopyToClipboard title="Copy Track URL" content={track.url} />
+              <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />
+            </ActionPanel>
+          }
+        />
+      );
+    }
+  }
 }

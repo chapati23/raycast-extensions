@@ -189,6 +189,26 @@ describe("Exa search", () => {
     expect(result.tracks[0].match).toBeUndefined();
   });
 
+  it("publishes the initial result before waiting for a missing mix lookup", async () => {
+    const wanted = { rank: 4, title: "Relax My Eyes Original Mix", credits: "ANOTR, Abel Balder" };
+    respond(JSON.stringify({ results: [track] }));
+    const initial = vi.fn();
+    const calls = vi.mocked(Client.prototype.callTool);
+    calls.mockResolvedValueOnce({ content: [{ type: "text", text: JSON.stringify({ results: [other] }) }] });
+    calls.mockImplementationOnce(async () => {
+      expect(initial).toHaveBeenCalledOnce();
+      expect(initial.mock.calls[0][0].tracks[0].id).toBe("3");
+      return { content: [{ type: "text", text: JSON.stringify({ results: [track] }) }] };
+    });
+    const final = await searchBeatport(
+      wanted.credits + " " + wanted.title,
+      new AbortController().signal,
+      wanted,
+      initial,
+    );
+    expect(final.tracks[0].match).toBe("exact");
+  });
+
   it("keeps base results and merges only verified chart links from the targeted search", async () => {
     const baseTrack = {
       ...track,

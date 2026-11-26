@@ -1,12 +1,12 @@
 # Beatport Search for Raycast
 
-Open **Search Beatport** and type an artist or track name. An exact artist-name match puts the profile first. **Beatport Top Ten** shows only the numbered positions visible on the indexed artist page. Return opens a track when its title, mix and credits identify a single Beatport track ID among the results. A magnifier and **Find mix** mark entries that need another search. Escape returns to the artist. If the index has no ranks, select the artist and open **Top Ten** in Actions.
+Open **Search Beatport** and type an artist or track name. An exact artist-name match puts the profile first. **Beatport Top Ten** shows only the numbered positions visible on the indexed artist page. Return opens a track when its title, mix and credits identify a single Beatport track ID among the results. A magnifier and **Find mix** mark entries that need another search. Escape returns to the artist. When fewer than ten ranks are shown, choose **View Full Top Ten on Beatport**, including when no ranks are available.
 
-For a specific version, include the artist, title and mix, for example “Art Department Walls (DJ Tennis Remix).” **Matching Mixes** contains matching indexed credits and titles. A **Possible Match** gets its title from the URL when the page metadata is missing. **Related Tracks** can include other versions or artists. **Search on Beatport** carries the query to the store when the mix is missing or the provider fails.
+For a specific version, include the artist, title and mix, for example “Art Department Walls (DJ Tennis Remix).” **Matching Mixes** contains matching indexed credits and titles. **Possible Matches** show names taken from track links when the artist is unconfirmed. **Related Tracks** can include other versions or artists. **Search on Beatport** carries the query to the store when the mix is missing or the provider fails.
 
 The command shows up to ten track results. Rows with identical titles and credits show a distinguishing release date or label, or the Beatport track ID. Use **Copy Track URL** in Actions to copy the link.
 
-The extension sends query text to [Exa’s free web search service](https://exa.ai/mcp) after you pause typing. It needs no account or key. It can make a focused search for a missing mix or artist profile, and look up the first three unresolved chart entries. The free service has rate limits. Chart coverage and release availability depend on the index.
+The extension sends query text to [Exa’s free web search service](https://exa.ai/mcp) after you pause typing. It needs no account or key. It can make a focused search for a missing mix or artist profile, and look up the first three unresolved chart entries. Initial results appear while these lookups run. The selected row keeps its Return action until you move to another row. During loading or a search limit, press Return from the empty search screen to continue on Beatport. Chart coverage and release availability depend on the index.
 
 ## Run locally on macOS
 
