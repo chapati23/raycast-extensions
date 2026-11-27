@@ -22,3 +22,7 @@ npm run dev
 Run `npm run typecheck`, `npm test`, and `npm run lint` for validation. Run `npm run build -- --environment dist --output dist` for a distribution bundle.
 
 This independent prototype uses public track links. Beatport has not endorsed it.
+
+## Verify search in Raycast
+
+The [Beatport verification skill](../.agents/skills/verify-beatport/SKILL.md) drives native Raycast search and captures screenshots. Use its fixed searches to check remix ordering, artist charts, artwork and retry behavior. Its separate live search checks the Exa connection.
