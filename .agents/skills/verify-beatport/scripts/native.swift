@@ -87,10 +87,22 @@ repeat {
             else { fail("Invalid menu item bounds") }
             let center = CGPoint(x: point.x + size.width / 2, y: point.y + size.height / 2)
             var hit: AXUIElement?
-            var owner: pid_t = 0
-            guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(center.x), Float(center.y), &hit) == .success,
-                  let hit, AXUIElementGetPid(hit, &owner) == .success, owner == raycast.processIdentifier
-            else { fail("The target is obscured. Leave the verification window visible.") }
+            guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(center.x), Float(center.y), &hit) == .success
+            else { fail("Cannot identify the menu item under the pointer") }
+            var target = hit
+            for _ in 0..<12 {
+                guard let node = target, !CFEqual(node, item) else { break }
+                guard let parent = value(node, kAXParentAttribute) else { target = nil; break }
+                target = (parent as! AXUIElement)
+            }
+            guard let target, CFEqual(target, item) else { fail("Menu item moved or is obscured: " + label) }
+            let originalPointer = CGEvent(source: nil)?.location
+            defer {
+                if let originalPointer, let pointer = CGEvent(source: nil)?.location,
+                   abs(pointer.x - center.x) < 2, abs(pointer.y - center.y) < 2 {
+                    CGWarpMouseCursorPosition(originalPointer)
+                }
+            }
             for type in [CGEventType.leftMouseDown, .leftMouseUp] {
                 guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: center, mouseButton: .left)
                 else { fail("Cannot activate " + label) }

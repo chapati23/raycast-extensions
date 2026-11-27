@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run one named journey against a private copy of the Beatport Raycast command."""
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import fcntl
 import json
 import os
@@ -32,7 +32,9 @@ def doctor():
 @contextmanager
 def exclusive_ui():
     # Keep the inode across runs so competing processes always lock the same file.
-    path = Path(tempfile.gettempdir()) / f"verify-beatport-{os.getuid()}.lock"
+    cache = Path.home() / "Library/Caches/verify-beatport"
+    cache.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = cache / "raycast.lock"
     with path.open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -42,9 +44,11 @@ def exclusive_ui():
 
 
 @contextmanager
-def install(scratch, evidence, live):
+def install(scratch, evidence, live, actions):
     name = "verify-beatport-" + uuid.uuid4().hex[:12]
     destination = EXTENSIONS / name
+    print("SCRATCH", scratch, file=actions)
+    print("INSTALL", name, file=actions)
     if destination.exists() or destination.is_symlink():
         raise RuntimeError("Verification extension ID is already in use.")
     manifest = json.loads((APP / "package.json").read_text())
@@ -60,12 +64,15 @@ def install(scratch, evidence, live):
         entry = scratch / "src/search.tsx"
         entry.rename(entry.with_name("view.tsx"))
         shutil.copy2(HERE / "provider.ts", entry.with_name("provider.ts"))
+        trace = json.dumps(str(evidence / "provider.jsonl"))
+        entry.with_name("trace-file.ts").write_text(f"export const traceFile = {trace};\n")
         entry.write_text('import "./provider";\nexport { default } from "./view";\n')
 
     with (evidence / "build.log").open("w") as log:
         child = subprocess.Popen([SCRIPTS / "ray", "develop", "--non-interactive"], cwd=scratch,
                                  stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
+            print("PROCESS_GROUP", child.pid, file=actions)
             limit = time.monotonic() + 60
             while not (destination / "search.js").is_file():
                 if child.poll() is not None or time.monotonic() > limit:
@@ -73,17 +80,25 @@ def install(scratch, evidence, live):
                 time.sleep(0.2)
             yield name, command, manifest["author"]
         finally:
-            if child.poll() is None:
-                os.killpg(child.pid, signal.SIGTERM)
-                try:
-                    child.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(child.pid, signal.SIGKILL)
-                    child.wait()
-            if destination.exists():
-                if destination.is_symlink() or json.loads((destination / "package.json").read_text())["name"] != name:
-                    raise RuntimeError(f"Cannot confirm ownership of {destination}. Inspect it before removing it.")
-                shutil.rmtree(destination)
+            journey_failed = sys.exc_info()[0] is not None
+            try:
+                if child.poll() is None:
+                    with suppress(ProcessLookupError):
+                        os.killpg(child.pid, signal.SIGTERM)
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        with suppress(ProcessLookupError):
+                            os.killpg(child.pid, signal.SIGKILL)
+                        child.wait()
+                if destination.exists():
+                    if destination.is_symlink() or json.loads((destination / "package.json").read_text())["name"] != name:
+                        raise RuntimeError(f"Cannot confirm ownership of {destination}. Inspect it before removing it.")
+                    shutil.rmtree(destination)
+            except (OSError, ValueError, KeyError, RuntimeError) as error:
+                print("CLEANUP FAILED", error, file=actions)
+                if not journey_failed:
+                    raise RuntimeError(f"Cleanup failed: {error}") from error
 
 
 def drive(case, evidence):
@@ -117,9 +132,8 @@ def drive(case, evidence):
 
         doctor()
         with exclusive_ui(), tempfile.TemporaryDirectory(prefix="beatport-raycast-") as folder:
-            with install(Path(folder), evidence, case == "live") as (name, command, author):
+            with install(Path(folder), evidence, case == "live", actions) as (name, command, author):
                 query = ROWS[case]
-                print("SCRATCH", folder, file=actions)
                 print("OPEN", name, query, file=actions)
                 url = f"raycast://extensions/{author}/{name}/search?" + urlencode({"fallbackText": query}, quote_via=quote)
                 subprocess.run(["open", url], check=True)
@@ -128,7 +142,9 @@ def drive(case, evidence):
                     title = "Walls (DJ Tennis Remix)"
                     step("wait", "AXStaticText", title)
                     if case == "mixes":
-                        above(title, "Walls (Chaim Remix)")
+                        above("Matching Mixes", title)
+                        above(title, "Related Tracks")
+                        above("Related Tracks", "Walls (Chaim Remix)")
                     capture("results", title)
                     menu(title, "Copy Track URL")
                 elif case == "chart":
@@ -137,6 +153,8 @@ def drive(case, evidence):
                     unresolved = "It's So Nice Extended Mix"
                     above("ANOTR", "Relax My Eyes Original Mix")
                     above("Relax My Eyes Original Mix", unresolved)
+                    step("wait", "AXStaticText", "#4")
+                    step("wait", "AXStaticText", "Find mix · #6")
                     capture("chart", unresolved)
                     menu(unresolved, "Find This Mix")
                     step("press", "AXMenuItem", "Find This Mix")
@@ -146,6 +164,18 @@ def drive(case, evidence):
                     step("actions", "AXStaticText", "Search limit reached")
                     step("press", "AXMenuItem", "Retry Search")
                     capture("retried", "No results found")
+                    step("wait", "AXTextField", query)
+                if case != "live":
+                    calls = [json.loads(line) for line in (evidence / "provider.jsonl").read_text().splitlines()]
+                    initial_queries = [call["query"] for call in calls if call["type"] == "lite"]
+                    expected = [query.lower()]
+                    if case == "retry":
+                        expected.append(query.lower())
+                    elif case == "chart":
+                        expected.append("anotr, 3ddy it's so nice extended mix")
+                    if initial_queries != expected:
+                        raise RuntimeError(f"Expected replay queries {expected}, got {initial_queries}")
+
         print("PASS", case, "temporary command and checkout copy removed", file=actions)
 
 
@@ -155,6 +185,7 @@ def stop(signum, frame):
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGHUP, stop)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("case", choices=["doctor", *ROWS])
     parser.add_argument("--evidence", type=Path, help="new directory for this run")
@@ -172,7 +203,7 @@ if __name__ == "__main__":
             ["git", "-C", APP.parent, "status", "--short", "--", "beatport", ".agents/skills/verify-beatport"], text=True))
         try:
             drive(args.case, evidence)
-        except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
             with (evidence / "actions.txt").open("a") as log:
                 print("FAIL", error, file=log)
             sys.exit(str(error))

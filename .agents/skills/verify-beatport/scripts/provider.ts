@@ -1,4 +1,6 @@
 // Imported only by the disposable replay command. Keep Exa's callTool response shape.
+import { appendFileSync } from "node:fs";
+import { traceFile } from "./trace-file";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 const artist = {
@@ -16,13 +18,15 @@ Client.prototype.connect = async () => {};
 Client.prototype.close = async () => {};
 Client.prototype.callTool = async (request) => {
   const q = String(request.arguments?.query).toLowerCase();
+  appendFileSync(traceFile, JSON.stringify({ query: q, type: request.arguments?.type }) + "\n");
   let results = [];
   if (q === "rate limit" && limited) {
     limited = false;
     return { isError: true, content: [{ type: "text", text: "429 rate limit" }] };
   }
   if (q.includes("walls")) {
-    results = [track, { url: "https://www.beatport.com/track/walls/6765602", title: "Art Department - Walls (Chaim Remix)" }];
+    // The index returns the related version first. The extension must promote the exact mix.
+    results = [{ url: "https://www.beatport.com/track/walls/6765602", title: "Art Department - Walls (Chaim Remix)" }, track];
   } else if (q.includes("so nice") && request.arguments?.type === "lite") {
     results = [{ url: "https://www.beatport.com/track/its-so-nice/3", title: "ANOTR, 3DDY - It's So Nice (Extended Mix)" }];
   } else if (q === "anotr") {

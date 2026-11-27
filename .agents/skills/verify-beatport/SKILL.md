@@ -9,7 +9,7 @@ description: Verify the Beatport Search extension in native macOS Raycast. Use a
 
 Use a logged-in Mac with Raycast running, Python 3, Swift command-line tools and the Node version supported by the extension. The selectors use Raycast’s English labels and its default development-extension directory. The terminal running the verifier needs Accessibility and Screen Recording access. Raycast has one shared UI. Use it when the user and other automation are idle. Parallel verifier runs for the same account share a lock.
 
-From the repository root, install the locked dependencies once:
+From the repository root, install dependencies, check the host and run the first journey:
 
 ```sh
 (cd beatport && npm ci)
@@ -43,11 +43,13 @@ From `beatport/`, run `npm test` for cases such as same-name artist IDs, ambiguo
 
 Each command prints its evidence directory. Use a new path to keep a named run, for example `"$V" chart --evidence "$PWD/proof-chart"`. Prefer a directory outside the checkout when keeping proof for a PR. Save the printed path before reporting a result.
 
+Replays also save `provider.jsonl` with the requested query and search type. Retry checks for two requests with the original query.
+
 Keep `revision.txt` (commit and scoped worktree status), `build.log`, `actions.txt` and the PNGs together. The action log records attempted operations. Its final PASS follows all assertions and normal cleanup. Inspect each PNG at native size, particularly when testing artwork. A visible menu item proves the action is available. The chart and retry journeys activate actions and check their resulting views. The harness leaves the browser and clipboard alone. Report those side effects as untested if the change depends on them.
 
 ## Cleanup
 
-The runner stops its development process group, removes its private installation and source copy, and releases the shared UI lock on normal completion or a handled failure. It preserves the evidence directory. On an interrupted run, use the exact `verify-beatport-…` command ID from the OPEN line and the SCRATCH path in the action log to identify leftovers. Confirm ownership before removal. Keep the installed `beatport-search` command. Verify the expected PNGs still open after cleanup.
+The runner stops its development process group, removes its private installation and source copy, and releases the shared UI lock on normal completion or a handled failure. It preserves the evidence directory. On an interrupted run, read INSTALL, SCRATCH and PROCESS_GROUP in the action log. If a forced exit left a process, use `ps -o pid,pgid,command -p PID` and `lsof -a -p PID -d cwd` with the recorded process ID. Stop that group only if its command and working directory still match. Remove the recorded scratch directory and matching private extension. An ordinary failure leaves its error and any cleanup failure in the action log. Keep the installed `beatport-search` command. Verify the expected PNGs still open after cleanup.
 
 ## Helpers
 

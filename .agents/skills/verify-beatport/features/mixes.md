@@ -10,7 +10,7 @@ Open Search Beatport. Type `Walls DJ Tennis Remix Art Department`, or pass the s
 
 ## Driving it with verify
 
-Run `"$V" mixes`. The driver opens the command with the query, compares the native vertical positions of both rows, and opens the exact row’s menu. Inspect `results.png`: **Walls (DJ Tennis Remix)** belongs under **Matching Mixes** and **Walls (Chaim Remix)** under **Related Tracks**. Check that the action log reaches **Copy Track URL**.
+Run `"$V" mixes`. The driver opens the command with the query, compares the native vertical positions of both rows, and requests Actions from the exact row. The replay supplies the Chaim version first. Inspect `results.png`: **Walls (DJ Tennis Remix)** belongs under **Matching Mixes** and **Walls (Chaim Remix)** under **Related Tracks**. Check that the action log reaches **Copy Track URL**.
 
 Run `"$V" live` after changing the Exa request. This sends the same query and requires the exact track and its copy action. Live results can include different related tracks.
 

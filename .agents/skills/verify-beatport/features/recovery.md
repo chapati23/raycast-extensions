@@ -10,7 +10,7 @@ When Search Beatport shows **Search limit reached**, open Actions and select **R
 
 ## Driving it with verify
 
-Run `"$V" retry`. The first request for `rate limit` returns a provider error. Inspect `limited.png` for the limit message and the browser-search hint. The driver sends Command-K to Raycast, activates **Retry Search**, and requires **No results found** in `retried.png`. That transition proves a second request ran without changing the query.
+Run `"$V" retry`. The first request for `rate limit` returns a provider error. Inspect `limited.png` for the limit message and the browser-search hint. The driver sends Command-K to Raycast, activates **Retry Search**, and requires **No results found** in `retried.png`. The driver also checks the search field and the two recorded initial requests in `provider.jsonl`. Both requests must carry the original query.
 
 ## Gotchas
 
