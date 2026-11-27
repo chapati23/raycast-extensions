@@ -27,7 +27,7 @@ func find(_ item: AXUIElement, role: String, label: String, depth: Int = 0) -> A
         value(item, $0) as? String
     }
     if fields.contains(where: {
-        $0 == label || (verb == "confirm" && $0.contains(label)) || (role == kAXMenuItemRole && $0.hasPrefix(label + " "))
+        $0 == label || (verb == "confirm" && role == kAXStaticTextRole && $0.contains(label)) || (role == kAXMenuItemRole && $0.hasPrefix(label + " "))
     }) { return item }
     return descend(item, role: role, label: label, depth: depth)
 }
@@ -44,11 +44,20 @@ if args == ["doctor"] {
     print("Raycast PID", raycast.processIdentifier, "Accessibility available")
     exit(0)
 }
-guard args.count == 3 else { fail("Usage: native.swift doctor | wait|press|menu|confirm|window ROLE LABEL") }
-let (verb, role, label) = (args[0], args[1], args[2])
+guard args.count == 4 else { fail("Usage: native.swift doctor | OPERATION ROLE LABEL COMMAND_TITLE") }
+let (verb, role, label, command) = (args[0], args[1], args[2], args[3])
 let deadline = ProcessInfo.processInfo.systemUptime + 20
 repeat {
-    for window in value(root, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+    let windows = value(root, kAXWindowsAttribute) as? [AXUIElement] ?? []
+    let commandWindows = windows.filter { find($0, role: kAXButtonRole, label: command) != nil }
+    if verb == "confirm" && commandWindows.count == 1 { exit(0) } // Trusted deep links open directly.
+    for window in windows {
+        if verb != "confirm" {
+            guard commandWindows.count == 1 else { continue }
+            // Raycast exposes Actions as a second window alongside the command.
+            let actionsPanel = role == kAXMenuItemRole && find(window, role: kAXTextFieldRole, label: "Search for actions…") != nil
+            guard CFEqual(window, commandWindows[0]) || actionsPanel else { continue }
+        }
         guard let item = find(window, role: role, label: label) else { continue }
         switch verb {
         case "y":

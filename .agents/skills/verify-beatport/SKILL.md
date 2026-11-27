@@ -7,7 +7,7 @@ description: Verify the Beatport Search extension in native macOS Raycast. Use a
 
 ## Launch
 
-Use a logged-in Mac with Raycast running, Python 3, Swift command-line tools and the Node version supported by the extension. The terminal running the verifier needs Accessibility and Screen Recording access. Raycast has one shared UI. Use it when the user and other automation are idle. Parallel verifier runs for the same account share a lock.
+Use a logged-in Mac with Raycast running, Python 3, Swift command-line tools and the Node version supported by the extension. The selectors use Raycast’s English labels and its default development-extension directory. The terminal running the verifier needs Accessibility and Screen Recording access. Raycast has one shared UI. Use it when the user and other automation are idle. Parallel verifier runs for the same account share a lock.
 
 From the repository root, install the locked dependencies once:
 

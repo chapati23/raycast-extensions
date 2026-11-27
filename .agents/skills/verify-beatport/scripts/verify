@@ -91,7 +91,7 @@ def drive(case, evidence):
         def step(verb, role, label):
             print(verb, role, label, file=actions)
             try:
-                result = subprocess.run([HERE / "native.swift", verb, role, label],
+                result = subprocess.run([HERE / "native.swift", verb, role, label, command],
                                         check=True, capture_output=True, text=True)
                 return result.stdout.strip()
             except subprocess.CalledProcessError as error:
