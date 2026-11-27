@@ -5,6 +5,7 @@ interface Page {
   id: string;
   title: string;
   url: string;
+  thumbnailUrl?: string;
 }
 
 export interface Track extends Page {
@@ -19,6 +20,7 @@ export interface ChartEntry {
   title: string;
   credits: string;
   trackUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export interface ArtistChoice extends Page {
@@ -34,9 +36,22 @@ export interface Results {
 }
 
 interface Hit {
+  image?: unknown;
   url: string;
   title: string;
   text?: string | null;
+}
+
+// Exa returns both concrete CDN dimensions and literal {w}x{h} templates.
+function thumbnailUrl(image: unknown) {
+  if (typeof image !== "string") return;
+  const file =
+    /^https:\/\/geo-media\.beatport\.com\/image_size\/(?:\d+x\d+|\{w\}x\{h\})\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.(?:jpe?g|png))$/i.exec(
+      image,
+    )?.[1];
+  // Beatport serves this stock silhouette for artists without a portrait.
+  if (!file || file.toLowerCase() === "0dc61986-bccf-49d4-8fad-6b147ea8f327.jpg") return;
+  return "https://geo-media.beatport.com/image_size/64x64/" + file;
 }
 
 function nameKey(value: string) {
@@ -167,6 +182,7 @@ function matchesMixQuery(track: Track, input: string) {
 export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, chartHits: Hit[] = []): Results {
   const visibleIds = new Set<string>();
   const tracks = new Map<string, Track>();
+  const trackImages = new Map<string, string>();
   const dates = new Map<string, string | undefined>();
   const labels = new Map<string, string>();
   const artists = new Map<string, ArtistChoice>();
@@ -186,13 +202,16 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
         hit.text?.match(/^# ([^\r\n]+)$/m)?.[1]?.trim() ??
         hit.title.replace(/\s+Music (?:& Downloads on Beatport|downloads?.*)$/i, "").trim();
       if (nameKey(title) !== nameKey(query)) continue;
-      const previous = artists.get(id);
+      const artist: ArtistChoice = artists.get(id) ?? { id, title, url, chart: [] };
+      artist.thumbnailUrl ??= thumbnailUrl(hit.image);
       const entries = topTen(hit.text ?? "", title);
-      if (!previous) artists.set(id, { id, title, url, chart: entries });
-      else if (entries.length > previous.chart.length) previous.chart = entries;
+      if (entries.length > artist.chart.length) artist.chart = entries;
+      artists.set(id, artist);
       continue;
     }
 
+    const image = thumbnailUrl(hit.image);
+    if (image && !trackImages.has(id)) trackImages.set(id, image);
     if (index < hits.length) visibleIds.add(id);
     // Exa may truncate its title even when the indexed page still has the full header.
     const header = hit.text?.split(/\r?\n/, 1)[0];
@@ -229,12 +248,14 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
   const profile = profiles.length === 1 ? profiles[0] : undefined;
   const chart = profile?.chart ?? [];
   const matches = [...tracks.values()].filter((track) => !profiles.length || creditedTo(track.artist ?? "", query));
+  for (const track of matches) track.thumbnailUrl = trackImages.get(track.id);
   const linked = new Set<string>();
   for (const entry of chart) {
     if (repeatedChartMix(entry, chart)) continue;
     const candidates = matches.filter((track) => sameMix(track, entry));
     if (candidates.length === 1) {
       entry.trackUrl = candidates[0].url;
+      entry.thumbnailUrl = candidates[0].thumbnailUrl;
       linked.add(candidates[0].id);
     }
   }

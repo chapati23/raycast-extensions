@@ -129,6 +129,10 @@ function ArtistChart({ artist, searchUrl }: { artist: ArtistChoice; searchUrl: s
   );
 }
 
+function artworkIcon(url: string | undefined, fallback: Icon) {
+  return url ? { source: url, fallback } : fallback;
+}
+
 function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) {
   switch (row.kind) {
     case "artist": {
@@ -146,7 +150,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
           title={row.profile.title}
           subtitle={row.choice ? (row.choice.chart[0]?.title ?? "Artist profile") : "Artist profile"}
           accessories={row.choice ? [{ text: "Artist ID " + row.profile.id }] : undefined}
-          icon={Icon.Person}
+          icon={artworkIcon(row.profile.thumbnailUrl, Icon.Person)}
           actions={
             <ActionPanel>
               {row.keepOpenProfile && openProfile}
@@ -181,7 +185,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
           title={entry.title}
           subtitle={entry.credits}
           accessories={[{ text: (entry.trackUrl ? "" : "Find mix · ") + "#" + entry.rank }]}
-          icon={entry.trackUrl ? Icon.Music : Icon.MagnifyingGlass}
+          icon={entry.trackUrl ? artworkIcon(entry.thumbnailUrl, Icon.Music) : Icon.MagnifyingGlass}
           actions={
             <ActionPanel>
               {entry.trackUrl ? (
@@ -225,7 +229,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
           title={track.title}
           subtitle={track.urlTitle ? "Name from link · Artist unconfirmed" : track.artist}
           accessories={track.releaseDetail ? [{ text: track.releaseDetail }] : undefined}
-          icon={Icon.Music}
+          icon={artworkIcon(track.thumbnailUrl, Icon.Music)}
           actions={
             <ActionPanel>
               <Action.OpenInBrowser title="Open on Beatport" url={track.url} />
