@@ -138,13 +138,20 @@ const versionEnding = /\b(?:mix|remix|edit|dub|version|extended)\s*\)?$/i;
 function matchesMixQuery(track: Track, input: string) {
   if (!track.artist || track.urlTitle) return false;
   const title = words(track.title);
-  const artist = words(track.artist);
-  if ([title, artist + " " + title, title + " " + artist].includes(input)) return true;
+  if (title === input) return true;
   // The indexed title supplies the boundary between the song and its version.
   const version = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(track.title);
-  return (
-    !!version && versionEnding.test(version[2]) && input === [words(version[1]), artist, words(version[2])].join(" ")
-  );
+  return [track.artist, ...track.artist.split(/[,•]/)].some((credit) => {
+    const artist = words(credit);
+    return (
+      !!artist &&
+      (input === artist + " " + title ||
+        input === title + " " + artist ||
+        (!!version &&
+          versionEnding.test(version[2]) &&
+          input === [words(version[1]), artist, words(version[2])].join(" ")))
+    );
+  });
 }
 
 export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, chartHits: Hit[] = []): Results {

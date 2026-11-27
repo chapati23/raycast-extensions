@@ -174,6 +174,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
       );
     case "rank": {
       const { entry } = row;
+      const copyUrl = row.copyUrl ?? entry.trackUrl;
       return (
         <List.Item
           id={row.id}
@@ -192,7 +193,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
                   target={<SearchView entry={entry} initialText={entry.credits + " " + entry.title} />}
                 />
               )}
-              {entry.trackUrl && <Action.CopyToClipboard title="Copy Track URL" content={entry.trackUrl} />}
+              {copyUrl && <Action.CopyToClipboard title="Copy Track URL" content={copyUrl} />}
               <Action.OpenInBrowser title="Open Chart on Beatport" url={row.chartUrl} />
             </ActionPanel>
           }

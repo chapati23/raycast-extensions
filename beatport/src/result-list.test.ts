@@ -18,6 +18,7 @@ describe("progressive Beatport search", () => {
     const list = updateList(previous, "q", settled, false);
     expect(list.selectedId).toBe(previous.selectedId);
     expect(list.sections[1].rows[0]).toMatchObject({ kind: "rank", entry: { trackUrl: undefined } });
+    expect(list.sections[1].rows[0]).toMatchObject({ copyUrl: track.url });
     expect(list.settledSections?.[1].rows[0]).toMatchObject({ kind: "rank", entry: { trackUrl: track.url } });
   });
   it("keeps a selected track accessible when deduplication moves it to the chart", () => {

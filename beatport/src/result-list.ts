@@ -9,7 +9,7 @@ export type ResultRow =
       choice?: ArtistChoice;
       keepOpenProfile?: boolean;
     }
-  | { id: string; kind: "rank"; entry: ChartEntry; chartUrl: string }
+  | { id: string; kind: "rank"; entry: ChartEntry; chartUrl: string; copyUrl?: string }
   | { id: string; kind: "chart"; url: string }
   | { id: string; kind: "catalog"; matchingMixBelow?: boolean }
   | { id: string; kind: "track"; track: Track };
@@ -127,7 +127,14 @@ export function updateList(
 
   const display = sections.map((s) => ({ ...s, rows: [...s.rows] }));
   if (updated) {
-    for (const section of display) section.rows = section.rows.map((row) => (row.id === id ? old : row));
+    const held =
+      old.kind === "rank" &&
+      updated.kind === "rank" &&
+      old.entry.title === updated.entry.title &&
+      old.entry.credits === updated.entry.credits
+        ? { ...old, copyUrl: updated.entry.trackUrl }
+        : old;
+    for (const section of display) section.rows = section.rows.map((row) => (row.id === id ? held : row));
   } else {
     const section = display.find((s) => s.title === oldSection.title);
     if (section)

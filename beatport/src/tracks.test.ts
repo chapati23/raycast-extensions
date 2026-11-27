@@ -41,6 +41,7 @@ describe("Beatport results", () => {
     );
     expect(result.profile).toBeUndefined();
     expect(result.chart).toEqual([]);
+    expect(result.artistChoices?.[0].chart[0].trackUrl).toBeUndefined();
     expect(result.artistChoices?.map(({ id, chart }) => [id, chart.map((entry) => entry.title)])).toEqual([
       ["498574", ["Relax My Eyes Original Mix", "It's So Nice Extended Mix"]],
       ["123", ["Different Song"]],
@@ -70,6 +71,18 @@ describe("Beatport results", () => {
     ]) {
       expect(parseResults(hits, query).tracks.some((t) => t.match === "exact")).toBe(false);
     }
+  });
+
+  it("recognizes an individual credited artist without accepting fragments of their name", () => {
+    const hit = { ...track, title: "ANOTR, Abel Balder - Relax My Eyes (Original Mix)" };
+    for (const q of [
+      "ANOTR Relax My Eyes Original Mix",
+      "Relax My Eyes (Original Mix) Abel Balder",
+      "Relax My Eyes Abel Balder Original Mix",
+    ]) {
+      expect(parseResults([hit], q).tracks[0].match, q).toBe("exact");
+    }
+    expect(parseResults([hit], "Abel Relax My Eyes Original Mix").tracks[0].match).toBeUndefined();
   });
 
   it("keeps track searches in provider order and deduplicates aliases by track ID", () => {
