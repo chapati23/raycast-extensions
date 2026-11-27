@@ -6,7 +6,7 @@ For a specific version, include the artist, title and mix, for example “Art De
 
 The command shows up to ten track results. Rows with identical titles and credits show a distinguishing release date or label, or the Beatport track ID. Use **Copy Track URL** in Actions on a track or a resolved chart rank.
 
-The extension sends query text to [Exa’s free web search service](https://exa.ai/mcp) after you pause typing. It needs no account or key. It can make a focused search for a missing mix or artist profile, and look up the first three unresolved chart entries. Initial results appear while these lookups run. The selected row keeps its Return action until you move to another row. During loading or a search limit, press Return from the empty search screen to continue on Beatport. Chart coverage and release availability depend on the index.
+The extension sends query text to [Exa’s free web search service](https://exa.ai/mcp) after you pause typing. It needs no account or key. It can make a focused search for a missing mix or artist profile, and look up the first three unresolved chart entries. Initial results appear while these lookups run. The selected row keeps its Return action until you move to another row. If its chart track resolves, Actions lets you open or copy the verified link. If another artist with the same name appears, choose **View Artist Top Ten** in Actions. During loading or a search limit, press Return from the empty search screen to continue on Beatport. Chart coverage and release availability depend on the index.
 
 ## Run locally on macOS
 

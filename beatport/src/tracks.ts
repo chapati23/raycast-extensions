@@ -135,21 +135,31 @@ function repeatedChartMix(entry: ChartEntry, chart: ChartEntry[]) {
 
 const versionEnding = /\b(?:mix|remix|edit|dub|version|extended)\s*\)?$/i;
 
+function queryCredits(track: Track) {
+  if (!track.artist || track.urlTitle) return [];
+  return [track.artist, ...track.artist.split(/[,•]/)].map(words).filter(Boolean);
+}
+
+function versionBeforeCredit(track: Track, input: string) {
+  return queryCredits(track).some((credit) => {
+    const suffix = " " + credit;
+    return input.endsWith(suffix) && versionEnding.test(input.slice(0, -suffix.length));
+  });
+}
+
 function matchesMixQuery(track: Track, input: string) {
   if (!track.artist || track.urlTitle) return false;
   const title = words(track.title);
   if (title === input) return true;
   // The indexed title supplies the boundary between the song and its version.
   const version = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(track.title);
-  return [track.artist, ...track.artist.split(/[,•]/)].some((credit) => {
-    const artist = words(credit);
+  return queryCredits(track).some((artist) => {
     return (
-      !!artist &&
-      (input === artist + " " + title ||
-        input === title + " " + artist ||
-        (!!version &&
-          versionEnding.test(version[2]) &&
-          input === [words(version[1]), artist, words(version[2])].join(" ")))
+      input === artist + " " + title ||
+      input === title + " " + artist ||
+      (!!version &&
+        versionEnding.test(version[2]) &&
+        input === [words(version[1]), artist, words(version[2])].join(" "))
     );
   });
 }
@@ -234,7 +244,10 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
     (!!wanted ||
       versionEnding.test(query) ||
       /\([^()]*\b(?:mix|remix|edit|dub|version|extended)\)\s+\S/i.test(query) ||
-      matches.some((track) => versionEnding.test(track.title) && matchesMixQuery(track, input)));
+      matches.some(
+        (track) =>
+          versionBeforeCredit(track, input) || (versionEnding.test(track.title) && matchesMixQuery(track, input)),
+      ));
   if (mixSearch) {
     for (const track of matches) {
       if (track.urlTitle) {

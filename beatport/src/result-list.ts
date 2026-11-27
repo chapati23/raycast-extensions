@@ -9,7 +9,7 @@ export type ResultRow =
       choice?: ArtistChoice;
       keepOpenProfile?: boolean;
     }
-  | { id: string; kind: "rank"; entry: ChartEntry; chartUrl: string; copyUrl?: string }
+  | { id: string; kind: "rank"; entry: ChartEntry; chartUrl: string; resolvedTrackUrl?: string }
   | { id: string; kind: "chart"; url: string }
   | { id: string; kind: "catalog"; matchingMixBelow?: boolean }
   | { id: string; kind: "track"; track: Track };
@@ -108,10 +108,15 @@ export function updateList(
       ...next,
       selectedId: id,
       settledSections: sections,
-      sections: sections.map((section) => ({
-        ...section,
-        rows: section.rows.map((row) => (row === updated ? { ...updated, keepOpenProfile: true } : row)),
-      })),
+      sections: sections.map((section) =>
+        section.rows.includes(updated)
+          ? {
+              ...section,
+              subtitle: "View Artist Top Ten in Actions",
+              rows: section.rows.map((row) => (row === updated ? { ...updated, keepOpenProfile: true } : row)),
+            }
+          : section,
+      ),
     };
   }
   if (
@@ -132,7 +137,7 @@ export function updateList(
       updated.kind === "rank" &&
       old.entry.title === updated.entry.title &&
       old.entry.credits === updated.entry.credits
-        ? { ...old, copyUrl: updated.entry.trackUrl }
+        ? { ...old, resolvedTrackUrl: updated.entry.trackUrl }
         : old;
     for (const section of display) section.rows = section.rows.map((row) => (row.id === id ? held : row));
   } else {

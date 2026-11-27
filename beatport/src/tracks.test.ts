@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseResults, searchBeatport } from "./tracks";
+import { updateList } from "./result-list";
 
 const profile = {
   url: "https://www.beatport.com/artist/anotr/498574",
@@ -273,6 +274,29 @@ describe("Exa search", () => {
       initial,
     );
     expect(final.tracks[0].match).toBe("exact");
+  });
+
+  it("keeps an artist-last remix query on catalog search until the requested version arrives", async () => {
+    const query = "Walls DJ Tennis Remix Art Department";
+    const wrong = { url: "https://beatport.com/track/walls/41", title: "Art Department - Walls (Chaim Remix)" };
+    const right = { url: "https://beatport.com/track/walls/42", title: "Art Department - Walls (DJ Tennis Remix)" };
+    respond(JSON.stringify({ results: [right] }));
+    const calls = vi.mocked(Client.prototype.callTool);
+    calls.mockResolvedValueOnce({ content: [{ type: "text", text: JSON.stringify({ results: [wrong] }) }] });
+    const preview = vi.fn();
+    const final = await searchBeatport(query, new AbortController().signal, undefined, preview);
+    expect(preview).toHaveBeenCalledOnce();
+    const list = updateList(undefined, query, preview.mock.calls[0][0], true);
+    expect(list.selectedId).toBe("catalog");
+    expect(list.sections.map((section) => section.title)).toEqual(["Beatport", "Related Tracks"]);
+    expect(calls).toHaveBeenCalledTimes(2);
+    expect(final.tracks.map((t) => [t.id, t.match])).toEqual([
+      ["42", "exact"],
+      ["41", undefined],
+    ]);
+    expect(updateList(list, query, final, false).selectedId).toBe("catalog");
+    expect(parseResults([wrong], "Mix Tape Art Department").mixSearch).toBeUndefined();
+    expect(parseResults([wrong], "Walls DJ Tennis Remix Department").mixSearch).toBeUndefined();
   });
 
   it("shows usable tracks while looking for their artist profile", async () => {

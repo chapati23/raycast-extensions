@@ -18,7 +18,7 @@ describe("progressive Beatport search", () => {
     const list = updateList(previous, "q", settled, false);
     expect(list.selectedId).toBe(previous.selectedId);
     expect(list.sections[1].rows[0]).toMatchObject({ kind: "rank", entry: { trackUrl: undefined } });
-    expect(list.sections[1].rows[0]).toMatchObject({ copyUrl: track.url });
+    expect(list.sections[1].rows[0]).toMatchObject({ resolvedTrackUrl: track.url });
     expect(list.settledSections?.[1].rows[0]).toMatchObject({ kind: "rank", entry: { trackUrl: track.url } });
   });
   it("keeps a selected track accessible when deduplication moves it to the chart", () => {
@@ -37,7 +37,9 @@ describe("progressive Beatport search", () => {
     const updated = updateList(preview, "Artist", { artistChoices: choices, chart: [], tracks: [] }, false);
     expect(updated.sections.map((section) => section.title)).toEqual(["Artists"]);
     expect(updated.sections[0].rows[0]).toMatchObject({ id: "artist-1", keepOpenProfile: true });
+    expect(updated.sections[0].subtitle).toBe("View Artist Top Ten in Actions");
     const moved = selectResult(updated, "Artist", "artist-7");
+    expect(moved?.sections[0].subtitle).toBe("Choose an artist to view their Top Ten");
     expect(moved?.sections[0].rows[0]).not.toHaveProperty("keepOpenProfile");
     expect(moved?.sections[0].rows[1]).toMatchObject({ choice: { chart: [entry] } });
   });
