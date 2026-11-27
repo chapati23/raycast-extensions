@@ -49,7 +49,9 @@ function thumbnailUrl(image: unknown) {
     /^https:\/\/geo-media\.beatport\.com\/image_size\/(?:\d+x\d+|\{w\}x\{h\})\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.(?:jpe?g|png))$/i.exec(
       image,
     )?.[1];
-  if (file) return "https://geo-media.beatport.com/image_size/64x64/" + file;
+  // Beatport serves this stock silhouette for artists without a portrait.
+  if (!file || file.toLowerCase() === "0dc61986-bccf-49d4-8fad-6b147ea8f327.jpg") return;
+  return "https://geo-media.beatport.com/image_size/64x64/" + file;
 }
 
 function nameKey(value: string) {

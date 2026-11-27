@@ -52,6 +52,11 @@ describe("Beatport results", () => {
     expect(ambiguous.chart[0].thumbnailUrl).toBeUndefined();
   });
 
+  it("keeps the native artist icon for Beatport’s shared silhouette", () => {
+    const image = "https://geo-media.beatport.com/image_size/590x404/0dc61986-bccf-49d4-8fad-6b147ea8f327.jpg";
+    expect(parseResults([{ ...profile, image }], "ANOTR").profile?.thumbnailUrl).toBeUndefined();
+  });
+
   it("keeps usable tracks when image metadata is missing, malformed or outside the artwork CDN", () => {
     const file = "ef6f370c-a6f2-4b04-95b7-f04aeca0de4c.jpg";
     const path = "/image_size/64x64/" + file;
