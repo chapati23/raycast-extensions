@@ -185,6 +185,16 @@ describe("Beatport results", () => {
     expect(result.tracks[0]).toMatchObject({ title: "Faith! (Original Mix)", artist: "Mr. G", match: "exact" });
   });
 
+  it("repairs a truncated first hit from complete metadata for the same track ID", () => {
+    const clipped = { ...track, title: "ANOTR, Abel Balder - Relax My Eyes (Orig…" };
+    const result = parseResults([profile, clipped], "ANOTR", undefined, [track]);
+    expect(result.chart[0].trackUrl).toBe("https://www.beatport.com/track/relax-my-eyes/2");
+    expect(parseResults([clipped, track], "Relax My Eyes").tracks[0].title).toBe("Relax My Eyes (Original Mix)");
+    expect(parseResults([track, clipped], "Relax My Eyes").tracks[0].title).toBe("Relax My Eyes (Original Mix)");
+    const different = { ...track, title: "ANOTR - Another Track" };
+    expect(parseResults([clipped, different], "Relax My Eyes").tracks[0].title).toBe("Relax My Eyes (Orig…");
+  });
+
   it("uses ISO release dates and distinguishes same-date editions by label", () => {
     const hits = [
       ["1993-06-30", "One"],

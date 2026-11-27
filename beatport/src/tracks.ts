@@ -192,7 +192,13 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
     const name = pageTitle.replace(/\s+\[[^\]]+\]$/, "").trim();
     const placeholder = !name || /^Unknown Artist - Unknown(?: \(Unknown Mix\))?$/i.test(name);
     const existing = tracks.get(id);
-    if (existing && !existing.urlTitle) continue;
+    if (existing && !existing.urlTitle) {
+      const previous = [existing.artist, existing.title].filter(Boolean).join(" - ");
+      const clipped = /(?:…|\.{3,})$/.exec(previous);
+      if (!clipped || placeholder || /(?:…|\.{3,})$/.test(name)) continue;
+      const prefix = nameKey(previous.slice(0, clipped.index));
+      if (!prefix || !nameKey(name).startsWith(prefix)) continue;
+    }
     if (placeholder) {
       if (!existing && slug.length > 2 && /[a-z]{2}/i.test(slug))
         tracks.set(id, { id, url, title: slug.replace(/-/g, " "), urlTitle: true });
