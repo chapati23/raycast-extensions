@@ -12,7 +12,7 @@ Press Return to open a track on Beatport. To share it, open Actions and choose *
 
 Try **Trashlagoon**. An exact artist match puts the profile first. If several artists share the name, choose the profile by artist ID or a track you recognize.
 
-**Beatport Top Ten** preserves the rank numbers available in the search index. For the current chart, choose **View Full Top Ten on Beatport**. A magnifier marks a rank that still needs a track lookup. Choose **Find This Mix** to search with its title and credits, then press Escape to return. If more results arrive while a row is selected, its Return action stays the same. Open Actions to see any newly verified track link.
+**Beatport Top Ten** preserves the rank numbers available in the search index. When fewer than ten ranks appear, choose **View Full Top Ten on Beatport** for the current chart. You can also select the artist and choose **Open Top Ten on Beatport** in Actions. A magnifier marks a rank that still needs a track lookup. Choose **Find This Mix** to search with its title and credits, then press Escape to return. If more results arrive while a row is selected, its Return action stays the same. On a selected rank, open Actions for a newly verified track link. If a second artist with the same name appears while the first profile is selected, choose **View Artist Top Ten** in Actions.
 
 ## Search service and privacy
 
