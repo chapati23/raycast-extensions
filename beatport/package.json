@@ -1,0 +1,43 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "beatport-search",
+  "title": "Beatport Search",
+  "description": "Find Beatport artist profiles, indexed chart positions, and track pages with web search.",
+  "icon": "extension-icon.png",
+  "author": "chapati23",
+  "categories": [
+    "Web"
+  ],
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "commands": [
+    {
+      "name": "search",
+      "title": "Search Beatport",
+      "description": "Search for a Beatport artist or track.",
+      "mode": "view"
+    }
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@raycast/api": "^2.5.1"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "22.19.17",
+    "@types/react": "19.3.0",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.1"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "lint": "ray lint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}
