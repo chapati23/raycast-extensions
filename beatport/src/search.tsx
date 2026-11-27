@@ -1,7 +1,14 @@
 import { Action, ActionPanel, Icon, List, type LaunchProps } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { searchBeatport, type ChartEntry, type Results } from "./tracks";
-import { selectResult, updateList, type ResultList, type ResultRow } from "./result-list";
+import { searchBeatport, type ArtistChoice, type ChartEntry, type Results } from "./tracks";
+import {
+  resultSections,
+  selectResult,
+  updateList,
+  type ResultList,
+  type ResultRow,
+  type ResultSection,
+} from "./result-list";
 
 export default function Command({ fallbackText }: LaunchProps) {
   return <SearchView initialText={fallbackText ?? ""} />;
@@ -64,13 +71,7 @@ function SearchView({ initialText, entry }: { initialText: string; entry?: Chart
       onSelectionChange={select}
     >
       {current?.sections.length ? (
-        current.sections.map((section) => (
-          <List.Section key={section.title} title={section.title} subtitle={section.subtitle}>
-            {section.rows.map((row) => (
-              <BeatportRow key={row.id} row={row} searchUrl={searchUrl} />
-            ))}
-          </List.Section>
-        ))
+        <ResultSections sections={current.sections} searchUrl={searchUrl} />
       ) : (
         <List.EmptyView
           icon={current?.error ? Icon.ExclamationMark : Icon.MagnifyingGlass}
@@ -106,24 +107,58 @@ function SearchView({ initialText, entry }: { initialText: string; entry?: Chart
   );
 }
 
+function ResultSections({ sections, searchUrl }: { sections: ResultSection[]; searchUrl: string }) {
+  return sections.map((section) => (
+    <List.Section key={section.title} title={section.title} subtitle={section.subtitle}>
+      {section.rows.map((row) => (
+        <BeatportRow key={row.id} row={row} searchUrl={searchUrl} />
+      ))}
+    </List.Section>
+  ));
+}
+
+function ArtistChart({ artist, searchUrl }: { artist: ArtistChoice; searchUrl: string }) {
+  const sections = resultSections({ profile: artist, chart: artist.chart, tracks: [] }, false);
+  return (
+    <List
+      navigationTitle={artist.title + " · Artist ID " + artist.id}
+      searchBarPlaceholder="Filter this artist’s chart"
+    >
+      <ResultSections sections={sections} searchUrl={searchUrl} />
+    </List>
+  );
+}
+
 function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) {
   switch (row.kind) {
-    case "artist":
+    case "artist": {
+      const openProfile = <Action.OpenInBrowser title="Open Artist on Beatport" url={row.profile.url} />;
+      const choose = row.choice && (
+        <Action.Push
+          title="View Artist Top Ten"
+          icon={Icon.List}
+          target={<ArtistChart artist={row.choice} searchUrl={searchUrl} />}
+        />
+      );
       return (
         <List.Item
           id={row.id}
           title={row.profile.title}
-          subtitle="Artist profile"
+          subtitle={row.choice ? (row.choice.chart[0]?.title ?? "Artist profile") : "Artist profile"}
+          accessories={row.choice ? [{ text: "Artist ID " + row.profile.id }] : undefined}
           icon={Icon.Person}
           actions={
             <ActionPanel>
-              <Action.OpenInBrowser title="Open Artist on Beatport" url={row.profile.url} />
+              {row.keepOpenProfile && openProfile}
+              {choose}
+              {!row.keepOpenProfile && openProfile}
               <Action.OpenInBrowser title="Open Top Ten on Beatport" url={row.chartUrl} />
               <Action.CopyToClipboard title="Copy Artist URL" content={row.profile.url} />
             </ActionPanel>
           }
         />
       );
+    }
     case "chart":
       return (
         <List.Item
@@ -157,6 +192,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
                   target={<SearchView entry={entry} initialText={entry.credits + " " + entry.title} />}
                 />
               )}
+              {entry.trackUrl && <Action.CopyToClipboard title="Copy Track URL" content={entry.trackUrl} />}
               <Action.OpenInBrowser title="Open Chart on Beatport" url={row.chartUrl} />
             </ActionPanel>
           }
@@ -169,7 +205,7 @@ function BeatportRow({ row, searchUrl }: { row: ResultRow; searchUrl: string }) 
           id={row.id}
           icon={Icon.MagnifyingGlass}
           title="Search on Beatport"
-          subtitle="Search the full catalog"
+          subtitle={row.matchingMixBelow ? "Matching mix below · Press ↓ to select" : "Search the full catalog"}
           actions={
             <ActionPanel>
               <Action.OpenInBrowser title="Search on Beatport" url={searchUrl} />

@@ -27,16 +27,29 @@ describe("progressive Beatport search", () => {
     expect(list.settledSections?.flatMap((s) => s.rows).map((r) => r.id)).not.toContain("track-2");
     expect(updateList(previous, "different", settled, false).selectedId).toBe("artist-1");
   });
+  it("preserves Open Artist when a second profile appears and releases it when the user moves", () => {
+    const preview = updateList(undefined, "Artist", { ...initial, chart: [] }, true);
+    const choices = [
+      { ...profile, chart: [] },
+      { ...profile, id: "7", url: "https://www.beatport.com/artist/artist/7", chart: [entry] },
+    ];
+    const updated = updateList(preview, "Artist", { artistChoices: choices, chart: [], tracks: [] }, false);
+    expect(updated.sections.map((section) => section.title)).toEqual(["Artists"]);
+    expect(updated.sections[0].rows[0]).toMatchObject({ id: "artist-1", keepOpenProfile: true });
+    const moved = selectResult(updated, "Artist", "artist-7");
+    expect(moved?.sections[0].rows[0]).not.toHaveProperty("keepOpenProfile");
+    expect(moved?.sections[0].rows[1]).toMatchObject({ choice: { chart: [entry] } });
+  });
   it("shows the chart link at zero ranks and keeps the catalog action when a match arrives", () => {
     expect(resultSections({ ...initial, chart: [] }, false)[1]).toMatchObject({
-      subtitle: "No ranks shown",
+      subtitle: "Ranks unavailable in this search",
       rows: [{ kind: "chart" }],
     });
     const related = { tracks: [track], chart: [], mixSearch: true };
     const previous = updateList(undefined, "song", related, true);
     const list = updateList(previous, "song", { ...related, tracks: [{ ...track, match: "exact" }] }, false);
     expect(list.selectedId).toBe("catalog");
-    expect(list.sections[0].rows[0].id).toBe("catalog");
+    expect(list.sections[0].rows[0]).toMatchObject({ id: "catalog", matchingMixBelow: true });
     expect(selectResult(list, "song", "catalog")).toBe(list);
     const moved = selectResult(list, "song", "track-2");
     expect(moved?.sections.map((s) => s.title)).toEqual(["Matching Mixes"]);

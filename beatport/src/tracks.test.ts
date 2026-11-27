@@ -16,7 +16,7 @@ const other = { url: "https://www.beatport.com/track/radio/3", title: "Another A
 describe("Beatport results", () => {
   it("promotes an exact artist and preserves only positions with adjacent titles and credits in its chart", () => {
     const result = parseResults(
-      [other, track, profile, { ...profile, url: "https://www.beatport.com/artist/anotr/123", text: "# ANOTR" }],
+      [other, track, profile, { ...profile, url: "https://www.beatport.com/es/artist/anotr/498574", text: "# ANOTR" }],
       "anotr",
     );
     expect(result.profile?.id).toBe("498574");
@@ -27,6 +27,49 @@ describe("Beatport results", () => {
     expect(result.chart[0].trackUrl).toBe("https://www.beatport.com/track/relax-my-eyes/2");
     expect(result.chart[1].trackUrl).toBeUndefined();
     expect(result.tracks).toEqual([]);
+  });
+
+  it("keeps same-name profiles and their ranked tracks separate by artist ID", () => {
+    const second = {
+      ...profile,
+      url: "https://www.beatport.com/artist/anotr/123",
+      text: "# ANOTR\n## Top Ten Tracks\n1\nDifferent Song\nANOTR",
+    };
+    const result = parseResults(
+      [profile, { ...profile, url: profile.url.replace("/artist/", "/fr/artist/") }, second, track],
+      "ANOTR",
+    );
+    expect(result.profile).toBeUndefined();
+    expect(result.chart).toEqual([]);
+    expect(result.artistChoices?.map(({ id, chart }) => [id, chart.map((entry) => entry.title)])).toEqual([
+      ["498574", ["Relax My Eyes Original Mix", "It's So Nice Extended Mix"]],
+      ["123", ["Different Song"]],
+    ]);
+  });
+
+  it("matches intact artist, title and version in common search orders", () => {
+    const hit = { url: "https://beatport.com/track/walls/4", title: "Art Department - Walls (DJ Tennis Remix)" };
+    const hits = [other, { ...hit, url: hit.url + "1", title: "Other Artist - Walls (DJ Tennis Remix)" }, hit];
+    for (const query of [
+      "Walls (DJ Tennis Remix) Art Department",
+      "Walls Art Department DJ Tennis Remix",
+      "Art Department Walls (DJ Tennis Remix)",
+      "Walls DJ Tennis Remix Art Department",
+    ]) {
+      const result = parseResults(hits, query);
+      expect(
+        result.tracks.filter((track) => track.match === "exact").map((t) => t.id),
+        query,
+      ).toEqual(["4"]);
+      expect(result.mixSearch, query).toBe(true);
+    }
+    for (const query of [
+      "Walls Art DJ Tennis Department Remix",
+      "Walls Department DJ Tennis Remix",
+      "Walls Art Department Radio Remix",
+    ]) {
+      expect(parseResults(hits, query).tracks.some((t) => t.match === "exact")).toBe(false);
+    }
   });
 
   it("keeps track searches in provider order and deduplicates aliases by track ID", () => {

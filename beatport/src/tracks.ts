@@ -21,7 +21,12 @@ export interface ChartEntry {
   trackUrl?: string;
 }
 
+export interface ArtistChoice extends Page {
+  chart: ChartEntry[];
+}
+
 export interface Results {
+  artistChoices?: ArtistChoice[];
   profile?: Page;
   mixSearch?: boolean;
   chart: ChartEntry[];
@@ -128,13 +133,26 @@ function repeatedChartMix(entry: ChartEntry, chart: ChartEntry[]) {
   );
 }
 
+const versionEnding = /\b(?:mix|remix|edit|dub|version|extended)\s*\)?$/i;
+
+function matchesMixQuery(track: Track, input: string) {
+  if (!track.artist || track.urlTitle) return false;
+  const title = words(track.title);
+  const artist = words(track.artist);
+  if ([title, artist + " " + title, title + " " + artist].includes(input)) return true;
+  // The indexed title supplies the boundary between the song and its version.
+  const version = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(track.title);
+  return (
+    !!version && versionEnding.test(version[2]) && input === [words(version[1]), artist, words(version[2])].join(" ")
+  );
+}
+
 export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, chartHits: Hit[] = []): Results {
   const visibleIds = new Set<string>();
   const tracks = new Map<string, Track>();
   const dates = new Map<string, string | undefined>();
   const labels = new Map<string, string>();
-  let profile: Page | undefined;
-  let chart: ChartEntry[] = [];
+  const artists = new Map<string, ArtistChoice>();
   for (const [index, hit] of [...hits, ...chartHits].entries()) {
     if (!URL.canParse(hit.url)) continue;
     const page = new URL(hit.url);
@@ -150,10 +168,11 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
       const title =
         hit.text?.match(/^# ([^\r\n]+)$/m)?.[1]?.trim() ??
         hit.title.replace(/\s+Music (?:& Downloads on Beatport|downloads?.*)$/i, "").trim();
-      if (nameKey(title) !== nameKey(query) || (profile && profile.id !== id)) continue;
-      profile ??= { id, title, url };
+      if (nameKey(title) !== nameKey(query)) continue;
+      const previous = artists.get(id);
       const entries = topTen(hit.text ?? "", title);
-      if (entries.length > chart.length) chart = entries;
+      if (!previous) artists.set(id, { id, title, url, chart: entries });
+      else if (entries.length > previous.chart.length) previous.chart = entries;
       continue;
     }
 
@@ -183,7 +202,10 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
       artist: hasArtist ? name.slice(0, split) : undefined,
     });
   }
-  const matches = [...tracks.values()].filter((track) => !profile || creditedTo(track.artist ?? "", profile.title));
+  const profiles = [...artists.values()];
+  const profile = profiles.length === 1 ? profiles[0] : undefined;
+  const chart = profile?.chart ?? [];
+  const matches = [...tracks.values()].filter((track) => !profiles.length || creditedTo(track.artist ?? "", query));
   const linked = new Set<string>();
   for (const entry of chart) {
     if (repeatedChartMix(entry, chart)) continue;
@@ -193,18 +215,19 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
       linked.add(candidates[0].id);
     }
   }
-  const mixSearch = !profile && (!!wanted || /\b(?:mix|remix|edit|dub|version|extended)\s*\)?$/i.test(query));
+  const input = words(query);
+  const mixSearch =
+    !profiles.length &&
+    (!!wanted ||
+      versionEnding.test(query) ||
+      /\([^()]*\b(?:mix|remix|edit|dub|version|extended)\)\s+\S/i.test(query) ||
+      matches.some((track) => versionEnding.test(track.title) && matchesMixQuery(track, input)));
   if (mixSearch) {
-    const input = words(query);
     for (const track of matches) {
       if (track.urlTitle) {
         const hint = words(track.title);
         if (hint && (" " + input + " ").includes(" " + hint + " ")) track.match = "url";
-      } else if (
-        wanted
-          ? sameMix(track, wanted)
-          : track.artist && [words(track.title), words(track.artist + " " + track.title)].includes(input)
-      ) {
+      } else if (wanted ? sameMix(track, wanted) : matchesMixQuery(track, input)) {
         track.match = "exact";
       }
     }
@@ -213,7 +236,13 @@ export function parseResults(hits: Hit[], query: string, wanted?: ChartEntry, ch
   }
   const visible = matches.filter((track) => visibleIds.has(track.id) && !linked.has(track.id)).slice(0, 10);
   labelDuplicates(visible, dates, labels);
-  return { profile, chart, tracks: visible, ...(mixSearch && { mixSearch: true }) };
+  return {
+    profile,
+    ...(profiles.length > 1 && { artistChoices: profiles }),
+    chart,
+    tracks: visible,
+    ...(mixSearch && { mixSearch: true }),
+  };
 }
 
 function isHit(value: unknown): value is Hit {
@@ -298,6 +327,7 @@ export async function searchBeatport(
         return parseResults([...extra, ...hits], query, wanted);
       }
       if (
+        !result.artistChoices &&
         !result.chart.length &&
         (result.profile || result.tracks.some((track) => creditedTo(track.artist ?? "", query)))
       ) {

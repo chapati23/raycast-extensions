@@ -1,10 +1,17 @@
-import type { ChartEntry, Results, Track } from "./tracks";
+import type { ArtistChoice, ChartEntry, Results, Track } from "./tracks";
 
 export type ResultRow =
-  | { id: string; kind: "artist"; profile: NonNullable<Results["profile"]>; chartUrl: string }
+  | {
+      id: string;
+      kind: "artist";
+      profile: NonNullable<Results["profile"]>;
+      chartUrl: string;
+      choice?: ArtistChoice;
+      keepOpenProfile?: boolean;
+    }
   | { id: string; kind: "rank"; entry: ChartEntry; chartUrl: string }
   | { id: string; kind: "chart"; url: string }
-  | { id: string; kind: "catalog" }
+  | { id: string; kind: "catalog"; matchingMixBelow?: boolean }
   | { id: string; kind: "track"; track: Track };
 
 export interface ResultSection {
@@ -16,8 +23,22 @@ export interface ResultSection {
 export function resultSections(result: Results, pending: boolean): ResultSection[] {
   const sections: ResultSection[] = [];
   const { profile, chart, tracks } = result;
+  const chartLink = (url: string) => url + "#:~:text=Top%20Ten%20Tracks&text=Top%2010%20Tracks";
+  if (result.artistChoices) {
+    sections.push({
+      title: "Artists",
+      subtitle: "Choose an artist to view their Top Ten",
+      rows: result.artistChoices.map((choice) => ({
+        id: "artist-" + choice.id,
+        kind: "artist",
+        profile: choice,
+        choice,
+        chartUrl: chartLink(choice.url),
+      })),
+    });
+  }
   if (profile) {
-    const chartUrl = profile.url + "#:~:text=Top%20Ten%20Tracks&text=Top%2010%20Tracks";
+    const chartUrl = chartLink(profile.url);
     sections.push({ title: "Artist", rows: [{ id: "artist-" + profile.id, kind: "artist", profile, chartUrl }] });
     const rows: ResultRow[] = chart.map((entry) => ({
       id: "rank-" + profile.id + "-" + entry.rank,
@@ -26,7 +47,11 @@ export function resultSections(result: Results, pending: boolean): ResultSection
       chartUrl,
     }));
     if (chart.length < 10) rows.push({ id: "chart-" + profile.id, kind: "chart", url: chartUrl });
-    const subtitle = chart.length ? chart.length + " of 10 shown" : pending ? "Checking ranks…" : "No ranks shown";
+    const subtitle = chart.length
+      ? chart.length + " of 10 shown"
+      : pending
+        ? "Checking ranks…"
+        : "Ranks unavailable in this search";
     sections.push({ title: "Beatport Top Ten", subtitle, rows });
   }
 
@@ -78,6 +103,17 @@ export function updateList(
   const old = oldSection?.rows.find((r) => r.id === id);
   if (!old || !oldSection) return next;
   const updated = sections.flatMap((s) => s.rows).find((r) => r.id === id);
+  if (old.kind === "artist" && !old.choice && updated?.kind === "artist" && updated.choice) {
+    return {
+      ...next,
+      selectedId: id,
+      settledSections: sections,
+      sections: sections.map((section) => ({
+        ...section,
+        rows: section.rows.map((row) => (row === updated ? { ...updated, keepOpenProfile: true } : row)),
+      })),
+    };
+  }
   if (
     updated &&
     (old.kind !== "rank" ||
@@ -101,6 +137,14 @@ export function updateList(
         old,
       );
     else display.splice(previous.sections.indexOf(oldSection), 0, { title: oldSection.title, rows: [old] });
+  }
+  if (old.kind === "catalog") {
+    const rows = display.flatMap((section) => section.rows);
+    const below = rows[rows.indexOf(old) + 1];
+    if (below?.kind === "track" && below.track.match === "exact") {
+      for (const section of display)
+        section.rows = section.rows.map((row) => (row === old ? { ...old, matchingMixBelow: true } : row));
+    }
   }
   return { ...next, selectedId: id, sections: display, settledSections: sections };
 }
