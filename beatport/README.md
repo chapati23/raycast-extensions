@@ -1,28 +1,25 @@
-# Beatport Search for Raycast
+# Beatport Search
 
-Open **Search Beatport** and type an artist or track name. An exact artist-name match puts the profile first. When multiple Beatport profiles share the name, choose from **Artists** to see that profile’s chart. Each choice shows the artist ID and a ranked track when available. In a same-name artist’s chart, **Find This Mix** searches for a track because its indexed credits do not distinguish the artist IDs. **Beatport Top Ten** shows only the numbered positions visible on the indexed artist page. Return opens a track when its title, mix and credits identify a single Beatport track ID among the results. A magnifier and **Find mix** mark entries that need another search. Escape returns to the artist. When fewer than ten ranks are shown, choose **View Full Top Ten on Beatport**, including when no ranks are available.
+Find a track, identify a remix, or browse an artist’s indexed Top Ten from Raycast. Open **Search Beatport** on macOS and type at least two characters. No account or API key is required. This is an independent extension. Beatport does not develop or endorse it.
 
-For a specific version, include the artist, title and mix, for example “Art Department Walls (DJ Tennis Remix).” The artist can also follow the title and version, or sit between the title and the named remix. **Matching Mixes** contains matching indexed credits and titles. **Possible Matches** show names taken from track links when the artist is unconfirmed. **Related Tracks** can include other versions or artists. **Search on Beatport** carries the query to the store when the mix is missing or the provider fails.
+## Find a specific mix
 
-Artist profiles and tracks show small thumbnails when the search index supplies a Beatport image. Raycast loads them directly from Beatport’s image CDN. Missing artwork uses the usual icons, and unresolved chart positions keep the magnifier.
+Try **Walls DJ Tennis Remix Art Department**. **Matching Mixes** shows tracks whose indexed title, version and artist credits match. **Possible Matches** contains titles inferred from links with unconfirmed credits. **Related Tracks** can include other versions or artists.
 
-The command shows up to ten track results. Rows with identical titles and credits show a distinguishing release date or label, or the Beatport track ID. Use **Copy Track URL** in Actions on a track or a resolved chart rank.
+Press Return to open a track on Beatport. To share it, open Actions and choose **Copy Track URL**. The list shows up to ten tracks. If titles and credits are identical, look for the release date, label or Beatport track ID.
 
-The extension sends query text to [Exa’s free web search service](https://exa.ai/mcp) after you pause typing. It needs no account or key. It can make a focused search for a missing mix or artist profile, and look up the first three unresolved chart entries. Initial results appear while these lookups run. The selected row keeps its Return action until you move to another row. If its chart track resolves, Actions lets you open or copy the verified link. If another artist with the same name appears, choose **View Artist Top Ten** in Actions. During loading or a search limit, press Return from the empty search screen to continue on Beatport. Chart coverage and release availability depend on the index.
+## Browse an artist
 
-## Run locally on macOS
+Try **Trashlagoon**. An exact artist match puts the profile first. If several artists share the name, choose the profile by artist ID or a track you recognize.
 
-With Raycast and Node.js installed, run these commands from the `beatport` directory.
+**Beatport Top Ten** preserves the rank numbers available in the search index. For the current chart, choose **View Full Top Ten on Beatport**. A magnifier marks a rank that still needs a track lookup. Choose **Find This Mix** to search with its title and credits, then press Escape to return. If more results arrive while a row is selected, its Return action stays the same. Open Actions to see any newly verified track link.
 
-```sh
-npm ci
-npm run dev
-```
+## Search service and privacy
 
-Run `npm run typecheck`, `npm test`, and `npm run lint` for validation. Run `npm run build -- --environment dist --output dist` for a distribution bundle.
+The extension sends your query to [Exa](https://exa.ai/mcp) after you pause typing. It can send follow-up searches for a specific mix, an artist profile or the first three unresolved chart positions. Raycast loads available track covers and portraits from Beatport’s image CDN. Search results depend on what Exa has indexed. If Exa reaches its free rate limit or a search fails, choose **Retry Search** or press Return to search on Beatport in your browser.
 
-This independent prototype uses public track links. Beatport has not endorsed it.
+## Development
 
-## Verify search in Raycast
+This release supports macOS. Windows has not been verified.
 
-The [Beatport verification skill](../.agents/skills/verify-beatport/SKILL.md) drives native Raycast search and captures screenshots. Use its fixed searches to check remix ordering, artist charts, artwork and retry behavior. Its separate live search checks the Exa connection.
+From the extension directory, run `npm ci` and `npm run dev`. Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run build -- --environment dist --output dist` before publishing. The [native verification skill](https://github.com/chapati23/raycast-extensions/tree/main/.agents/skills/verify-beatport) exercises search, charts, artwork and retry in Raycast.
