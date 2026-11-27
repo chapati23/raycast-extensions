@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""Run one named journey against a private copy of the Beatport Raycast command."""
+import argparse
+from contextlib import contextmanager, suppress
+import fcntl
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from urllib.parse import quote, urlencode
+import uuid
+
+HERE = Path(__file__).resolve().parent
+APP = HERE.parents[3] / "beatport"
+WALLS = "Walls DJ Tennis Remix Art Department"
+ROWS = {"mixes": WALLS, "chart": "ANOTR", "retry": "rate limit", "live": WALLS}
+SCRIPTS = APP / "node_modules" / ".bin"
+EXTENSIONS = Path.home() / ".config/raycast/extensions"
+
+
+def doctor():
+    if sys.platform != "darwin" or not (SCRIPTS / "ray").is_file():
+        raise RuntimeError("Run on macOS with Raycast and run npm ci in beatport first.")
+    subprocess.run([HERE / "native.swift", "doctor"], check=True)
+
+
+@contextmanager
+def exclusive_ui():
+    # Keep the inode across runs so competing processes always lock the same file.
+    cache = Path.home() / "Library/Caches/verify-beatport"
+    cache.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = cache / "raycast.lock"
+    with path.open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("Another Beatport verification run owns the Raycast UI.") from None
+        yield
+
+
+@contextmanager
+def install(scratch, evidence, live, actions):
+    name = "verify-beatport-" + uuid.uuid4().hex[:12]
+    destination = EXTENSIONS / name
+    print("SCRATCH", scratch, file=actions)
+    print("INSTALL", name, file=actions)
+    if destination.exists() or destination.is_symlink():
+        raise RuntimeError("Verification extension ID is already in use.")
+    manifest = json.loads((APP / "package.json").read_text())
+    command = "Verify Beatport " + name.rsplit("-", 1)[1]
+    manifest.update(name=name, title=command)
+    manifest["commands"][0]["title"] = command
+    (scratch / "package.json").write_text(json.dumps(manifest))
+    for folder in ("assets", "src"):
+        shutil.copytree(APP / folder, scratch / folder)
+    shutil.copy2(APP / "tsconfig.json", scratch)
+    (scratch / "node_modules").symlink_to(APP / "node_modules", target_is_directory=True)
+    if not live:
+        entry = scratch / "src/search.tsx"
+        entry.rename(entry.with_name("view.tsx"))
+        shutil.copy2(HERE / "provider.ts", entry.with_name("provider.ts"))
+        trace = json.dumps(str(evidence / "provider.jsonl"))
+        entry.with_name("trace-file.ts").write_text(f"export const traceFile = {trace};\n")
+        entry.write_text('import "./provider";\nexport { default } from "./view";\n')
+
+    with (evidence / "build.log").open("w") as log:
+        child = subprocess.Popen([SCRIPTS / "ray", "develop", "--non-interactive"], cwd=scratch,
+                                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            print("PROCESS_GROUP", child.pid, file=actions)
+            limit = time.monotonic() + 60
+            while not (destination / "search.js").is_file():
+                if child.poll() is not None or time.monotonic() > limit:
+                    raise RuntimeError(f"Raycast did not build the command. See {log.name}.")
+                time.sleep(0.2)
+            yield name, command, manifest["author"]
+        finally:
+            journey_failed = sys.exc_info()[0] is not None
+            try:
+                if child.poll() is None:
+                    with suppress(ProcessLookupError):
+                        os.killpg(child.pid, signal.SIGTERM)
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        with suppress(ProcessLookupError):
+                            os.killpg(child.pid, signal.SIGKILL)
+                        child.wait()
+                if destination.exists():
+                    if destination.is_symlink() or json.loads((destination / "package.json").read_text())["name"] != name:
+                        raise RuntimeError(f"Cannot confirm ownership of {destination}. Inspect it before removing it.")
+                    shutil.rmtree(destination)
+            except (OSError, ValueError, KeyError, RuntimeError) as error:
+                print("CLEANUP FAILED", error, file=actions)
+                if not journey_failed:
+                    raise RuntimeError(f"Cleanup failed: {error}") from error
+
+
+def drive(case, evidence):
+    with (evidence / "actions.txt").open("w", buffering=1) as actions:
+        def step(verb, role, label):
+            print(verb, role, label, file=actions)
+            try:
+                result = subprocess.run([HERE / "native.swift", verb, role, label, command],
+                                        check=True, capture_output=True, text=True)
+                return result.stdout.strip()
+            except subprocess.CalledProcessError as error:
+                raise RuntimeError(error.stderr.strip() or str(error)) from error
+
+        def capture(filename, marker):
+            window = step("window", "AXStaticText", marker)
+            path = evidence / (filename + ".png")
+            subprocess.run(["/usr/sbin/screencapture", "-x", "-o", "-l", window, path], check=True)
+            if not path.is_file() or path.stat().st_size < 1000:
+                raise RuntimeError("Raycast screenshot missing or empty. Check Screen Recording access.")
+
+        def above(first, second):
+            first_y = float(step("y", "AXStaticText", first))
+            second_y = float(step("y", "AXStaticText", second))
+            if first_y >= second_y:
+                raise RuntimeError(f"Expected {first} above {second}")
+            print(f"ORDER {first} above {second}", file=actions)
+
+        def menu(row, action):
+            step("menu", "AXStaticText", row)
+            step("wait", "AXMenuItem", action)
+
+        doctor()
+        with exclusive_ui(), tempfile.TemporaryDirectory(prefix="beatport-raycast-") as folder:
+            with install(Path(folder), evidence, case == "live", actions) as (name, command, author):
+                query = ROWS[case]
+                print("OPEN", name, query, file=actions)
+                url = f"raycast://extensions/{author}/{name}/search?" + urlencode({"fallbackText": query}, quote_via=quote)
+                subprocess.run(["open", url], check=True)
+                step("confirm", "AXStaticText", command)
+                if case in ("mixes", "live"):
+                    title = "Walls (DJ Tennis Remix)"
+                    step("wait", "AXStaticText", title)
+                    if case == "mixes":
+                        above("Matching Mixes", title)
+                        above(title, "Related Tracks")
+                        above("Related Tracks", "Walls (Chaim Remix)")
+                    capture("results", title)
+                    menu(title, "Copy Track URL")
+                elif case == "chart":
+                    step("wait", "AXStaticText", "View Full Top Ten on Beatport")
+                    step("wait", "AXStaticText", "Relax My Eyes Original Mix")
+                    unresolved = "It's So Nice Extended Mix"
+                    above("ANOTR", "Relax My Eyes Original Mix")
+                    above("Relax My Eyes Original Mix", unresolved)
+                    step("wait", "AXStaticText", "#4")
+                    step("wait", "AXStaticText", "Find mix · #6")
+                    capture("chart", unresolved)
+                    menu(unresolved, "Find This Mix")
+                    step("press", "AXMenuItem", "Find This Mix")
+                    capture("find-mix", "It's So Nice (Extended Mix)")
+                else:
+                    capture("limited", "Search limit reached")
+                    step("actions", "AXStaticText", "Search limit reached")
+                    step("press", "AXMenuItem", "Retry Search")
+                    capture("retried", "No results found")
+                    step("wait", "AXTextField", query)
+                if case != "live":
+                    calls = [json.loads(line) for line in (evidence / "provider.jsonl").read_text().splitlines()]
+                    initial_queries = [call["query"] for call in calls if call["type"] == "lite"]
+                    expected = [query.lower()]
+                    if case == "retry":
+                        expected.append(query.lower())
+                    elif case == "chart":
+                        expected.append("anotr, 3ddy it's so nice extended mix")
+                    if initial_queries != expected:
+                        raise RuntimeError(f"Expected replay queries {expected}, got {initial_queries}")
+
+        print("PASS", case, "temporary command and checkout copy removed", file=actions)
+
+
+def stop(signum, frame):
+    raise SystemExit(128 + signum)
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGHUP, stop)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("case", choices=["doctor", *ROWS])
+    parser.add_argument("--evidence", type=Path, help="new directory for this run")
+    args = parser.parse_args()
+    if args.case == "doctor":
+        doctor()
+    else:
+        evidence = args.evidence or Path(tempfile.mkdtemp(prefix="beatport-proof-"))
+        if args.evidence:
+            evidence.mkdir(mode=0o700, parents=True, exist_ok=False)
+        evidence = evidence.resolve()
+        print("Evidence:", evidence, flush=True)
+        revision = subprocess.check_output(["git", "-C", APP, "rev-parse", "HEAD"], text=True).strip()
+        (evidence / "revision.txt").write_text(revision + "\n" + subprocess.check_output(
+            ["git", "-C", APP.parent, "status", "--short", "--", "beatport", ".agents/skills/verify-beatport"], text=True))
+        try:
+            drive(args.case, evidence)
+        except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+            with (evidence / "actions.txt").open("a") as log:
+                print("FAIL", error, file=log)
+            sys.exit(str(error))
+        print("PASS", args.case)
