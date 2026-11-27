@@ -30,6 +30,49 @@ describe("Beatport results", () => {
     expect(result.tracks).toEqual([]);
   });
 
+  it("keeps artwork with its page ID and copies it to a unique chart match", () => {
+    const cdn = "https://geo-media.beatport.com/image_size/";
+    const cover = "ef6f370c-a6f2-4b04-95b7-f04aeca0de4c.jpg";
+    const portrait = "eebcb5f4-2609-4cc3-8c84-570c7ab5a6f9.jpg";
+    const indexed = { ...track, image: cdn + "{w}x{h}/" + cover };
+    // Artist and track IDs are independent namespaces.
+    const artist = { ...profile, url: "https://www.beatport.com/artist/anotr/2" };
+    const pages = [artist, track, { ...artist, image: cdn + "590x404/" + portrait }];
+    const result = parseResults(pages, "ANOTR", undefined, [indexed]);
+    expect(result.profile?.thumbnailUrl).toBe(cdn + "64x64/" + portrait);
+    expect(result.chart[0]).toMatchObject({
+      trackUrl: "https://www.beatport.com/track/relax-my-eyes/2",
+      thumbnailUrl: cdn + "64x64/" + cover,
+    });
+    expect(result.chart[1].thumbnailUrl).toBeUndefined();
+    expect(parseResults([track, indexed], "Relax My Eyes").tracks[0].thumbnailUrl).toBe(cdn + "64x64/" + cover);
+    const competingRelease = { ...indexed, url: "https://www.beatport.com/track/other/99" };
+    const ambiguous = parseResults([...pages, indexed, competingRelease], "ANOTR");
+    expect(ambiguous.chart[0].trackUrl).toBeUndefined();
+    expect(ambiguous.chart[0].thumbnailUrl).toBeUndefined();
+  });
+
+  it("keeps usable tracks when image metadata is missing, malformed or outside the artwork CDN", () => {
+    const file = "ef6f370c-a6f2-4b04-95b7-f04aeca0de4c.jpg";
+    const path = "/image_size/64x64/" + file;
+    for (const image of [
+      undefined,
+      null,
+      42,
+      {},
+      "https://www.beatport.com/images/beatport-social-image.png",
+      "http://geo-media.beatport.com" + path,
+      "https://geo-media.beatport.com.evil.example" + path,
+      "https://geo-media.beatport.com@other.example" + path,
+      "https://geo-media.beatport.com" + path + "?url=untrusted",
+      "https://geo-media.beatport.com/image_size/64x64/not-an-image.svg",
+    ]) {
+      const result = parseResults([{ ...track, image }], "Relax My Eyes");
+      expect(result.tracks.map((t) => t.id)).toEqual(["2"]);
+      expect(result.tracks[0].thumbnailUrl).toBeUndefined();
+    }
+  });
+
   it("keeps same-name profiles and their ranked tracks separate by artist ID", () => {
     const second = {
       ...profile,
@@ -240,9 +283,21 @@ describe("Exa search", () => {
   }
 
   it("keeps track links when the provider omits page text", async () => {
-    const close = respond(JSON.stringify({ results: [{ ...track, text: null }] }));
+    const close = respond(
+      JSON.stringify({
+        results: [
+          {
+            ...track,
+            text: null,
+            image: "https://geo-media.beatport.com/image_size/400x400/ef6f370c-a6f2-4b04-95b7-f04aeca0de4c.jpg",
+          },
+        ],
+      }),
+    );
     const result = await searchBeatport("Relax My Eyes", new AbortController().signal);
     expect(result.tracks.map((item) => item.id)).toEqual(["2"]);
+    expect(result.tracks[0].thumbnailUrl).toContain("/64x64/");
+    expect(Client.prototype.callTool).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });
 
